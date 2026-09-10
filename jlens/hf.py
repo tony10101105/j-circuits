@@ -1,5 +1,6 @@
 # Copyright 2026 Anthropic PBC
 # SPDX-License-Identifier: Apache-2.0
+# Modified from anthropics/jacobian-lens by Tung-Yu (Tony) Wu and his Claude.
 """HuggingFace adapter.
 
 Wraps an already-loaded HF model as a :class:`~jlens.protocol.LensModel` so
@@ -153,6 +154,12 @@ class HFLensModel:
     @property
     def input_device(self) -> torch.device:
         return self._embed_tokens.weight.device
+
+    @property
+    def unembed_weight(self) -> torch.Tensor:
+        """Raw unembedding matrix ``[vocab_size, d_model]`` (no final norm);
+        :mod:`jlens.interventions` builds J-lens vectors from its rows."""
+        return self._lm_head.weight
 
     def encode(self, text: str, *, max_length: int = 512) -> torch.Tensor:
         encoded = self.tokenizer(

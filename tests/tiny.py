@@ -1,5 +1,6 @@
 # Copyright 2026 Anthropic PBC
 # SPDX-License-Identifier: Apache-2.0
+# Modified from anthropics/jacobian-lens by Tung-Yu (Tony) Wu and his Claude.
 """A tiny CPU-only decoder for end-to-end tests.
 
 Implements :class:`jlens.protocol.LensModel` (``n_layers``, ``d_model``,
@@ -71,6 +72,10 @@ class TinyDecoder(nn.Module):
     @property
     def input_device(self) -> torch.device:
         return self.embed_tokens.weight.device
+
+    @property
+    def unembed_weight(self) -> torch.Tensor:
+        return self.lm_head.weight
 
     def encode(self, text: str, *, max_length: int = 128) -> torch.Tensor:
         return self.tokenizer(text, max_length=max_length).input_ids.to(

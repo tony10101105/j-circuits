@@ -1,0 +1,156 @@
+<svg width="1526" height="686" viewBox="0 0 1526 686" role="img" aria-label="J-circuit over layers 15 to 33 at 2 token position(s): concept nodes per layer, with dashed edges where the residual stream carries a concept forward, solid edges where a block computed the target, and a third colour where attention moved information between positions" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<marker id="jc-carry" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#8a94a6"/></marker>
+<marker id="jc-compute" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#0e7a72"/></marker>
+<marker id="jc-attention" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#b26308"/></marker>
+<marker id="jc-error" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#9a4fbf"/></marker>
+</defs>
+<rect x="0" y="0" width="1526" height="686" fill="#ffffff"/>
+<text x="410.0" y="16.0" text-anchor="middle" font-family="monospace" font-size="11" fill="#1a1a1a" opacity="0.62">pos 4  ␣legs</text>
+<line x1="58.0" y1="22.0" x2="762.0" y2="22.0" stroke="#1a1a1a" stroke-width="1" opacity="0.22"/>
+<text x="1156.0" y="16.0" text-anchor="middle" font-family="monospace" font-size="11" fill="#1a1a1a" opacity="0.62">pos 16  ␣has</text>
+<line x1="804.0" y1="22.0" x2="1508.0" y2="22.0" stroke="#1a1a1a" stroke-width="1" opacity="0.22"/>
+<path d="M 95.0 100.0 C 95.0 79.0, 931.0 79.0, 931.0 58.0" fill="none" stroke="#b26308" stroke-width="1.12" opacity="0.27" marker-end="url(#jc-attention)"><title>' does'@L31:4 -&gt; ' legs'@L33:16  A=-1.0096  identity=+0.0000  computed=-1.0096  [attention]</title></path>
+<path d="M 635.0 430.0 C 635.0 409.0, 185.0 409.0, 185.0 388.0" fill="none" stroke="#0e7a72" stroke-width="1.17" opacity="0.28" marker-end="url(#jc-compute)"><title>'worm'@L21:4 -&gt; ' bones'@L23:4  A=+1.3187  identity=+0.9959  computed=+0.3229  [compute]</title></path>
+<path d="M 1381.0 166.0 C 1381.0 145.0, 1201.0 145.0, 1201.0 124.0" fill="none" stroke="#0e7a72" stroke-width="1.17" opacity="0.28" marker-end="url(#jc-compute)"><title>'腿'@L29:16 -&gt; '织'@L31:16  A=+1.3188  identity=+1.5202  computed=-0.2014  [compute]</title></path>
+<path d="M 1291.0 100.0 C 1291.0 79.0, 1111.0 79.0, 1111.0 58.0" fill="none" stroke="#0e7a72" stroke-width="1.21" opacity="0.29" marker-end="url(#jc-compute)"><title>' no'@L31:16 -&gt; ' spinner'@L33:16  A=+1.5171  identity=+1.1388  computed=+0.3783  [compute]</title></path>
+<path d="M 1201.0 100.0 C 1201.0 79.0, 931.0 79.0, 931.0 58.0" fill="none" stroke="#0e7a72" stroke-width="1.21" opacity="0.29" marker-end="url(#jc-compute)"><title>'织'@L31:16 -&gt; ' legs'@L33:16  A=-1.5216  identity=-0.3494  computed=-1.1722  [compute]</title></path>
+<path d="M 185.0 166.0 C 185.0 145.0, 95.0 145.0, 95.0 124.0" fill="none" stroke="#0e7a72" stroke-width="1.21" opacity="0.29" marker-end="url(#jc-compute)"><title>' bones'@L29:4 -&gt; ' does'@L31:4  A=+1.5310  identity=+1.1611  computed=+0.3699  [compute]</title></path>
+<path d="M 1381.0 232.0 C 1381.0 211.0, 1471.0 211.0, 1471.0 190.0" fill="none" stroke="#0e7a72" stroke-width="1.21" opacity="0.29" marker-end="url(#jc-compute)"><title>'腿'@L27:16 -&gt; ' wings'@L29:16  A=+1.5474  identity=+2.4034  computed=-0.8559  [compute]</title></path>
+<path d="M 725.0 496.0 C 725.0 475.0, 635.0 475.0, 635.0 454.0" fill="none" stroke="#8a94a6" stroke-width="1.22" stroke-dasharray="4 3" opacity="0.19" marker-end="url(#jc-carry)"><title>' cock'@L19:4 -&gt; 'worm'@L21:4  A=+1.6072  identity=+1.4667  computed=+0.1404  [carry]</title></path>
+<path d="M 635.0 562.0 C 635.0 541.0, 725.0 541.0, 725.0 520.0" fill="none" stroke="#8a94a6" stroke-width="1.23" stroke-dasharray="4 3" opacity="0.19" marker-end="url(#jc-carry)"><title>'worm'@L17:4 -&gt; ' cock'@L19:4  A=+1.6334  identity=+1.6969  computed=-0.0635  [carry]</title></path>
+<path d="M 1021.0 232.0 C 1021.0 211.0, 1381.0 211.0, 1381.0 190.0" fill="none" stroke="#0e7a72" stroke-width="1.23" opacity="0.30" marker-end="url(#jc-compute)"><title>' spiders'@L27:16 -&gt; '腿'@L29:16  A=+1.6381  identity=+2.6016  computed=-0.9636  [compute]</title></path>
+<path d="M 1201.0 100.0 C 1201.0 79.0, 1111.0 79.0, 1111.0 58.0" fill="none" stroke="#0e7a72" stroke-width="1.24" opacity="0.30" marker-end="url(#jc-compute)"><title>'织'@L31:16 -&gt; ' spinner'@L33:16  A=+1.7171  identity=+2.0699  computed=-0.3528  [compute]</title></path>
+<path d="M 1021.0 298.0 C 1021.0 277.0, 841.0 277.0, 841.0 256.0" fill="none" stroke="#0e7a72" stroke-width="1.24" opacity="0.30" marker-end="url(#jc-compute)"><title>' spiders'@L25:16 -&gt; ' eight'@L27:16  A=+1.7240  identity=+1.0836  computed=+0.6405  [compute]</title></path>
+<path d="M 841.0 100.0 C 841.0 79.0, 1111.0 79.0, 1111.0 58.0" fill="none" stroke="#8a94a6" stroke-width="1.27" stroke-dasharray="4 3" opacity="0.20" marker-end="url(#jc-carry)"><title>' eight'@L31:16 -&gt; ' spinner'@L33:16  A=+1.9281  identity=+1.6660  computed=+0.2621  [carry]</title></path>
+<path d="M 841.0 232.0 C 841.0 211.0, 1021.0 211.0, 1021.0 190.0" fill="none" stroke="#0e7a72" stroke-width="1.28" opacity="0.31" marker-end="url(#jc-compute)"><title>' eight'@L27:16 -&gt; ' spiders'@L29:16  A=+1.9667  identity=+1.0749  computed=+0.8919  [compute]</title></path>
+<path d="M 1021.0 232.0 C 1021.0 211.0, 841.0 211.0, 841.0 190.0" fill="none" stroke="#8a94a6" stroke-width="1.29" stroke-dasharray="4 3" opacity="0.20" marker-end="url(#jc-carry)"><title>' spiders'@L27:16 -&gt; ' eight'@L29:16  A=+2.0030  identity=+1.8372  computed=+0.1659  [carry]</title></path>
+<path d="M 185.0 364.0 C 185.0 343.0, 545.0 343.0, 545.0 322.0" fill="none" stroke="#0e7a72" stroke-width="1.29" opacity="0.31" marker-end="url(#jc-compute)"><title>' bones'@L23:4 -&gt; ' walked'@L25:4  A=+2.0626  identity=+1.7063  computed=+0.3563  [compute]</title></path>
+<path d="M 1381.0 166.0 C 1381.0 145.0, 841.0 145.0, 841.0 124.0" fill="none" stroke="#0e7a72" stroke-width="1.30" opacity="0.31" marker-end="url(#jc-compute)"><title>'腿'@L29:16 -&gt; ' eight'@L31:16  A=+2.0761  identity=+0.9914  computed=+1.0846  [compute]</title></path>
+<path d="M 1381.0 166.0 C 1381.0 145.0, 1021.0 145.0, 1021.0 124.0" fill="none" stroke="#0e7a72" stroke-width="1.30" opacity="0.31" marker-end="url(#jc-compute)"><title>'腿'@L29:16 -&gt; ' spiders'@L31:16  A=+2.1068  identity=+1.6704  computed=+0.4365  [compute]</title></path>
+<path d="M 841.0 100.0 C 841.0 79.0, 1021.0 79.0, 1021.0 58.0" fill="none" stroke="#0e7a72" stroke-width="1.31" opacity="0.31" marker-end="url(#jc-compute)"><title>' eight'@L31:16 -&gt; ' spiders'@L33:16  A=+2.1681  identity=+2.7654  computed=-0.5973  [compute]</title></path>
+<path d="M 545.0 298.0 C 545.0 277.0, 455.0 277.0, 455.0 256.0" fill="none" stroke="#0e7a72" stroke-width="1.32" opacity="0.31" marker-end="url(#jc-compute)"><title>' walked'@L25:4 -&gt; ' are'@L27:4  A=+2.2309  identity=+2.9872  computed=-0.7563  [compute]</title></path>
+<path d="M 1471.0 166.0 C 1471.0 145.0, 1201.0 145.0, 1201.0 124.0" fill="none" stroke="#0e7a72" stroke-width="1.34" opacity="0.32" marker-end="url(#jc-compute)"><title>' wings'@L29:16 -&gt; '织'@L31:16  A=+2.4031  identity=+1.4667  computed=+0.9364  [compute]</title></path>
+<path d="M 1471.0 166.0 C 1471.0 145.0, 841.0 145.0, 841.0 124.0" fill="none" stroke="#0e7a72" stroke-width="1.35" opacity="0.32" marker-end="url(#jc-compute)"><title>' wings'@L29:16 -&gt; ' eight'@L31:16  A=+2.4484  identity=+1.7673  computed=+0.6811  [compute]</title></path>
+<path d="M 841.0 166.0 C 841.0 145.0, 1021.0 145.0, 1021.0 124.0" fill="none" stroke="#0e7a72" stroke-width="1.35" opacity="0.32" marker-end="url(#jc-compute)"><title>' eight'@L29:16 -&gt; ' spiders'@L31:16  A=+2.4897  identity=+1.9712  computed=+0.5185  [compute]</title></path>
+<path d="M 1021.0 298.0 C 1021.0 277.0, 1381.0 277.0, 1381.0 256.0" fill="none" stroke="#0e7a72" stroke-width="1.38" opacity="0.33" marker-end="url(#jc-compute)"><title>' spiders'@L25:16 -&gt; '腿'@L27:16  A=+2.6873  identity=+1.6781  computed=+1.0092  [compute]</title></path>
+<path d="M 841.0 100.0 C 841.0 79.0, 931.0 79.0, 931.0 58.0" fill="none" stroke="#8a94a6" stroke-width="1.39" stroke-dasharray="4 3" opacity="0.21" marker-end="url(#jc-carry)"><title>' eight'@L31:16 -&gt; ' legs'@L33:16  A=+2.7762  identity=+2.9424  computed=-0.1662  [carry]</title></path>
+<path d="M 841.0 166.0 C 841.0 145.0, 1201.0 145.0, 1201.0 124.0" fill="none" stroke="#0e7a72" stroke-width="1.41" opacity="0.33" marker-end="url(#jc-compute)"><title>' eight'@L29:16 -&gt; '织'@L31:16  A=+2.9445  identity=+2.2741  computed=+0.6704  [compute]</title></path>
+<path d="M 635.0 628.0 C 635.0 607.0, 635.0 607.0, 635.0 586.0" fill="none" stroke="#8a94a6" stroke-width="1.41" stroke-dasharray="4 3" opacity="0.22" marker-end="url(#jc-carry)"><title>'worm'@L15:4 -&gt; 'worm'@L17:4  A=+2.9900  identity=+3.0386  computed=-0.0486  [carry]</title></path>
+<path d="M 1021.0 166.0 C 1021.0 145.0, 841.0 145.0, 841.0 124.0" fill="none" stroke="#0e7a72" stroke-width="1.42" opacity="0.34" marker-end="url(#jc-compute)"><title>' spiders'@L29:16 -&gt; ' eight'@L31:16  A=+2.9983  identity=+2.3203  computed=+0.6780  [compute]</title></path>
+<path d="M 365.0 232.0 C 365.0 211.0, 95.0 211.0, 95.0 190.0" fill="none" stroke="#8a94a6" stroke-width="1.42" stroke-dasharray="4 3" opacity="0.22" marker-end="url(#jc-carry)"><title>' legs'@L27:4 -&gt; ' does'@L29:4  A=+3.0264  identity=+2.8452  computed=+0.1812  [carry]</title></path>
+<path d="M 1471.0 166.0 C 1471.0 145.0, 1291.0 145.0, 1291.0 124.0" fill="none" stroke="#8a94a6" stroke-width="1.42" stroke-dasharray="4 3" opacity="0.22" marker-end="url(#jc-carry)"><title>' wings'@L29:16 -&gt; ' no'@L31:16  A=+3.0433  identity=+2.6043  computed=+0.4391  [carry]</title></path>
+<path d="M 1471.0 232.0 C 1471.0 211.0, 1381.0 211.0, 1381.0 190.0" fill="none" stroke="#0e7a72" stroke-width="1.43" opacity="0.34" marker-end="url(#jc-compute)"><title>' wings'@L27:16 -&gt; '腿'@L29:16  A=+3.0775  identity=+3.8496  computed=-0.7721  [compute]</title></path>
+<path d="M 1291.0 100.0 C 1291.0 79.0, 1021.0 79.0, 1021.0 58.0" fill="none" stroke="#0e7a72" stroke-width="1.49" opacity="0.35" marker-end="url(#jc-compute)"><title>' no'@L31:16 -&gt; ' spiders'@L33:16  A=+3.6449  identity=+2.4292  computed=+1.2157  [compute]</title></path>
+<path d="M 365.0 232.0 C 365.0 211.0, 275.0 211.0, 275.0 190.0" fill="none" stroke="#8a94a6" stroke-width="1.52" stroke-dasharray="4 3" opacity="0.23" marker-end="url(#jc-carry)"><title>' legs'@L27:4 -&gt; ' were'@L29:4  A=+3.9576  identity=+3.9703  computed=-0.0127  [carry]</title></path>
+<path d="M 1021.0 166.0 C 1021.0 145.0, 1201.0 145.0, 1201.0 124.0" fill="none" stroke="#0e7a72" stroke-width="1.54" opacity="0.36" marker-end="url(#jc-compute)"><title>' spiders'@L29:16 -&gt; '织'@L31:16  A=+4.1727  identity=+1.8768  computed=+2.2960  [compute]</title></path>
+<path d="M 1471.0 232.0 C 1471.0 211.0, 1021.0 211.0, 1021.0 190.0" fill="none" stroke="#0e7a72" stroke-width="1.57" opacity="0.37" marker-end="url(#jc-compute)"><title>' wings'@L27:16 -&gt; ' spiders'@L29:16  A=+4.3930  identity=+6.7850  computed=-2.3919  [compute]</title></path>
+<path d="M 1021.0 166.0 C 1021.0 145.0, 1291.0 145.0, 1291.0 124.0" fill="none" stroke="#8a94a6" stroke-width="1.57" stroke-dasharray="4 3" opacity="0.24" marker-end="url(#jc-carry)"><title>' spiders'@L29:16 -&gt; ' no'@L31:16  A=+4.4181  identity=+3.9154  computed=+0.5026  [carry]</title></path>
+<path d="M 1291.0 100.0 C 1291.0 79.0, 931.0 79.0, 931.0 58.0" fill="none" stroke="#0e7a72" stroke-width="1.62" opacity="0.38" marker-end="url(#jc-compute)"><title>' no'@L31:16 -&gt; ' legs'@L33:16  A=+4.9435  identity=+2.7750  computed=+2.1685  [compute]</title></path>
+<path d="M 365.0 232.0 C 365.0 211.0, 185.0 211.0, 185.0 190.0" fill="none" stroke="#8a94a6" stroke-width="1.63" stroke-dasharray="4 3" opacity="0.25" marker-end="url(#jc-carry)"><title>' legs'@L27:4 -&gt; ' bones'@L29:4  A=+5.0249  identity=+4.3692  computed=+0.6557  [carry]</title></path>
+<path d="M 841.0 166.0 C 841.0 145.0, 1291.0 145.0, 1291.0 124.0" fill="none" stroke="#0e7a72" stroke-width="1.65" opacity="0.39" marker-end="url(#jc-compute)"><title>' eight'@L29:16 -&gt; ' no'@L31:16  A=+5.2761  identity=+3.9781  computed=+1.2979  [compute]</title></path>
+<path d="M 545.0 298.0 C 545.0 277.0, 365.0 277.0, 365.0 256.0" fill="none" stroke="#8a94a6" stroke-width="1.66" stroke-dasharray="4 3" opacity="0.25" marker-end="url(#jc-carry)"><title>' walked'@L25:4 -&gt; ' legs'@L27:4  A=+5.3936  identity=+4.9482  computed=+0.4454  [carry]</title></path>
+<path d="M 1291.0 100.0 C 1291.0 79.0, 841.0 79.0, 841.0 58.0" fill="none" stroke="#0e7a72" stroke-width="1.69" opacity="0.40" marker-end="url(#jc-compute)"><title>' no'@L31:16 -&gt; ' eight'@L33:16  A=+5.7314  identity=+4.2738  computed=+1.4576  [compute]</title></path>
+<path d="M 1021.0 298.0 C 1021.0 277.0, 1471.0 277.0, 1471.0 256.0" fill="none" stroke="#0e7a72" stroke-width="1.75" opacity="0.41" marker-end="url(#jc-compute)"><title>' spiders'@L25:16 -&gt; ' wings'@L27:16  A=+6.4838  identity=+5.2112  computed=+1.2726  [compute]</title></path>
+<path d="M 1021.0 232.0 C 1021.0 211.0, 1471.0 211.0, 1471.0 190.0" fill="none" stroke="#0e7a72" stroke-width="1.79" opacity="0.42" marker-end="url(#jc-compute)"><title>' spiders'@L27:16 -&gt; ' wings'@L29:16  A=+6.9299  identity=+8.1752  computed=-1.2453  [compute]</title></path>
+<path d="M 1471.0 166.0 C 1471.0 145.0, 1021.0 145.0, 1021.0 124.0" fill="none" stroke="#8a94a6" stroke-width="1.81" stroke-dasharray="4 3" opacity="0.28" marker-end="url(#jc-carry)"><title>' wings'@L29:16 -&gt; ' spiders'@L31:16  A=+7.2679  identity=+6.6790  computed=+0.5890  [carry]</title></path>
+<path d="M 275.0 166.0 C 275.0 145.0, 95.0 145.0, 95.0 124.0" fill="none" stroke="#8a94a6" stroke-width="1.88" stroke-dasharray="4 3" opacity="0.28" marker-end="url(#jc-carry)"><title>' were'@L29:4 -&gt; ' does'@L31:4  A=+8.2076  identity=+7.7833  computed=+0.4242  [carry]</title></path>
+<path d="M 1021.0 100.0 C 1021.0 79.0, 841.0 79.0, 841.0 58.0" fill="none" stroke="#0e7a72" stroke-width="1.96" opacity="0.46" marker-end="url(#jc-compute)"><title>' spiders'@L31:16 -&gt; ' eight'@L33:16  A=+9.3146  identity=+2.8799  computed=+6.4348  [compute]</title></path>
+<path d="M 455.0 232.0 C 455.0 211.0, 275.0 211.0, 275.0 190.0" fill="none" stroke="#0e7a72" stroke-width="1.97" opacity="0.46" marker-end="url(#jc-compute)"><title>' are'@L27:4 -&gt; ' were'@L29:4  A=+9.4184  identity=+11.0412  computed=-1.6228  [compute]</title></path>
+<path d="M 1021.0 364.0 C 1021.0 343.0, 1021.0 343.0, 1021.0 322.0" fill="none" stroke="#8a94a6" stroke-width="2.01" stroke-dasharray="4 3" opacity="0.30" marker-end="url(#jc-carry)"><title>' spiders'@L23:16 -&gt; ' spiders'@L25:16  A=+10.0112  identity=+10.1163  computed=-0.1052  [carry]</title></path>
+<path d="M 455.0 232.0 C 455.0 211.0, 95.0 211.0, 95.0 190.0" fill="none" stroke="#0e7a72" stroke-width="2.01" opacity="0.47" marker-end="url(#jc-compute)"><title>' are'@L27:4 -&gt; ' does'@L29:4  A=+10.0873  identity=+7.5138  computed=+2.5735  [compute]</title></path>
+<path d="M 931.0 100.0 C 931.0 79.0, 841.0 79.0, 841.0 58.0" fill="none" stroke="#0e7a72" stroke-width="2.06" opacity="0.48" marker-end="url(#jc-compute)"><title>' legs'@L31:16 -&gt; ' eight'@L33:16  A=+10.8472  identity=+2.7595  computed=+8.0877  [compute]</title></path>
+<path d="M 931.0 100.0 C 931.0 79.0, 1111.0 79.0, 1111.0 58.0" fill="none" stroke="#0e7a72" stroke-width="2.16" opacity="0.50" marker-end="url(#jc-compute)"><title>' legs'@L31:16 -&gt; ' spinner'@L33:16  A=+12.5022  identity=+7.5372  computed=+4.9650  [compute]</title></path>
+<path d="M 841.0 298.0 C 841.0 277.0, 841.0 277.0, 841.0 256.0" fill="none" stroke="#8a94a6" stroke-width="2.18" stroke-dasharray="4 3" opacity="0.33" marker-end="url(#jc-carry)"><title>' eight'@L25:16 -&gt; ' eight'@L27:16  A=+12.7931  identity=+11.9856  computed=+0.8074  [carry]</title></path>
+<path d="M 1471.0 166.0 C 1471.0 145.0, 931.0 145.0, 931.0 124.0" fill="none" stroke="#0e7a72" stroke-width="2.21" opacity="0.51" marker-end="url(#jc-compute)"><title>' wings'@L29:16 -&gt; ' legs'@L31:16  A=+13.3932  identity=+10.8722  computed=+2.5210  [compute]</title></path>
+<path d="M 1021.0 166.0 C 1021.0 145.0, 931.0 145.0, 931.0 124.0" fill="none" stroke="#8a94a6" stroke-width="2.30" stroke-dasharray="4 3" opacity="0.34" marker-end="url(#jc-carry)"><title>' spiders'@L29:16 -&gt; ' legs'@L31:16  A=+14.9448  identity=+13.2931  computed=+1.6516  [carry]</title></path>
+<path d="M 1381.0 166.0 C 1381.0 145.0, 931.0 145.0, 931.0 124.0" fill="none" stroke="#0e7a72" stroke-width="2.43" opacity="0.56" marker-end="url(#jc-compute)"><title>'腿'@L29:16 -&gt; ' legs'@L31:16  A=+17.5928  identity=+13.9106  computed=+3.6822  [compute]</title></path>
+<path d="M 1381.0 232.0 C 1381.0 211.0, 1381.0 211.0, 1381.0 190.0" fill="none" stroke="#8a94a6" stroke-width="2.47" stroke-dasharray="4 3" opacity="0.37" marker-end="url(#jc-carry)"><title>'腿'@L27:16 -&gt; '腿'@L29:16  A=+18.3691  identity=+18.8471  computed=-0.4780  [carry]</title></path>
+<path d="M 1021.0 298.0 C 1021.0 277.0, 1021.0 277.0, 1021.0 256.0" fill="none" stroke="#8a94a6" stroke-width="2.48" stroke-dasharray="4 3" opacity="0.37" marker-end="url(#jc-carry)"><title>' spiders'@L25:16 -&gt; ' spiders'@L27:16  A=+18.5026  identity=+17.8027  computed=+0.6999  [carry]</title></path>
+<path d="M 1021.0 100.0 C 1021.0 79.0, 931.0 79.0, 931.0 58.0" fill="none" stroke="#0e7a72" stroke-width="2.58" opacity="0.59" marker-end="url(#jc-compute)"><title>' spiders'@L31:16 -&gt; ' legs'@L33:16  A=+20.7707  identity=+14.7826  computed=+5.9881  [compute]</title></path>
+<path d="M 931.0 100.0 C 931.0 79.0, 1021.0 79.0, 1021.0 58.0" fill="none" stroke="#0e7a72" stroke-width="2.68" opacity="0.61" marker-end="url(#jc-compute)"><title>' legs'@L31:16 -&gt; ' spiders'@L33:16  A=+22.8385  identity=+15.0523  computed=+7.7862  [compute]</title></path>
+<path d="M 1021.0 100.0 C 1021.0 79.0, 1111.0 79.0, 1111.0 58.0" fill="none" stroke="#0e7a72" stroke-width="2.73" opacity="0.62" marker-end="url(#jc-compute)"><title>' spiders'@L31:16 -&gt; ' spinner'@L33:16  A=+24.0379  identity=+14.9483  computed=+9.0896  [compute]</title></path>
+<path d="M 841.0 232.0 C 841.0 211.0, 841.0 211.0, 841.0 190.0" fill="none" stroke="#0e7a72" stroke-width="2.85" opacity="0.65" marker-end="url(#jc-compute)"><title>' eight'@L27:16 -&gt; ' eight'@L29:16  A=+27.0163  identity=+19.9741  computed=+7.0422  [compute]</title></path>
+<path d="M 1471.0 232.0 C 1471.0 211.0, 1471.0 211.0, 1471.0 190.0" fill="none" stroke="#8a94a6" stroke-width="2.99" stroke-dasharray="4 3" opacity="0.44" marker-end="url(#jc-carry)"><title>' wings'@L27:16 -&gt; ' wings'@L29:16  A=+30.5619  identity=+27.4713  computed=+3.0906  [carry]</title></path>
+<path d="M 1021.0 232.0 C 1021.0 211.0, 1021.0 211.0, 1021.0 190.0" fill="none" stroke="#8a94a6" stroke-width="3.00" stroke-dasharray="4 3" opacity="0.44" marker-end="url(#jc-carry)"><title>' spiders'@L27:16 -&gt; ' spiders'@L29:16  A=+30.8840  identity=+32.4020  computed=-1.5179  [carry]</title></path>
+<path d="M 841.0 166.0 C 841.0 145.0, 841.0 145.0, 841.0 124.0" fill="none" stroke="#8a94a6" stroke-width="3.08" stroke-dasharray="4 3" opacity="0.45" marker-end="url(#jc-carry)"><title>' eight'@L29:16 -&gt; ' eight'@L31:16  A=+33.2253  identity=+31.4864  computed=+1.7389  [carry]</title></path>
+<path d="M 95.0 166.0 C 95.0 145.0, 95.0 145.0, 95.0 124.0" fill="none" stroke="#8a94a6" stroke-width="3.25" stroke-dasharray="4 3" opacity="0.48" marker-end="url(#jc-carry)"><title>' does'@L29:4 -&gt; ' does'@L31:4  A=+38.0044  identity=+40.2801  computed=-2.2757  [carry]</title></path>
+<path d="M 1021.0 166.0 C 1021.0 145.0, 1021.0 145.0, 1021.0 124.0" fill="none" stroke="#8a94a6" stroke-width="3.52" stroke-dasharray="4 3" opacity="0.52" marker-end="url(#jc-carry)"><title>' spiders'@L29:16 -&gt; ' spiders'@L31:16  A=+46.4698  identity=+40.0328  computed=+6.4370  [carry]</title></path>
+<path d="M 841.0 100.0 C 841.0 79.0, 841.0 79.0, 841.0 58.0" fill="none" stroke="#8a94a6" stroke-width="3.69" stroke-dasharray="4 3" opacity="0.54" marker-end="url(#jc-carry)"><title>' eight'@L31:16 -&gt; ' eight'@L33:16  A=+52.1882  identity=+45.5947  computed=+6.5935  [carry]</title></path>
+<path d="M 931.0 100.0 C 931.0 79.0, 931.0 79.0, 931.0 58.0" fill="none" stroke="#0e7a72" stroke-width="3.98" opacity="0.90" marker-end="url(#jc-compute)"><title>' legs'@L31:16 -&gt; ' legs'@L33:16  A=+63.0057  identity=+52.6149  computed=+10.3908  [compute]</title></path>
+<path d="M 1021.0 100.0 C 1021.0 79.0, 1021.0 79.0, 1021.0 58.0" fill="none" stroke="#0e7a72" stroke-width="4.00" opacity="0.90" marker-end="url(#jc-compute)"><title>' spiders'@L31:16 -&gt; ' spiders'@L33:16  A=+63.7113  identity=+52.7439  computed=+10.9675  [compute]</title></path>
+<text x="46" y="51.3" text-anchor="end" font-family="monospace" font-size="11" fill="#1a1a1a" opacity="0.55">L33</text>
+<rect x="804.0" y="34.0" width="74.0" height="24.0" rx="6" fill="none" stroke="#1a1a1a" stroke-width="1.1" opacity="0.8"/>
+<text x="841.0" y="50.0" text-anchor="middle" font-family="monospace" font-size="11" fill="#1a1a1a">␣eight</text>
+<rect x="894.0" y="34.0" width="74.0" height="24.0" rx="6" fill="none" stroke="#1a1a1a" stroke-width="1.1" opacity="0.8"/>
+<text x="931.0" y="50.0" text-anchor="middle" font-family="monospace" font-size="11" fill="#1a1a1a">␣legs</text>
+<rect x="984.0" y="34.0" width="74.0" height="24.0" rx="6" fill="none" stroke="#1a1a1a" stroke-width="1.1" opacity="0.8"/>
+<text x="1021.0" y="50.0" text-anchor="middle" font-family="monospace" font-size="11" fill="#1a1a1a">␣spiders</text>
+<rect x="1074.0" y="34.0" width="74.0" height="24.0" rx="6" fill="none" stroke="#1a1a1a" stroke-width="1.1" opacity="0.8"/>
+<text x="1111.0" y="50.0" text-anchor="middle" font-family="monospace" font-size="11" fill="#1a1a1a">␣spinner</text>
+<text x="46" y="117.3" text-anchor="end" font-family="monospace" font-size="11" fill="#1a1a1a" opacity="0.55">L31</text>
+<rect x="58.0" y="100.0" width="74.0" height="24.0" rx="6" fill="none" stroke="#1a1a1a" stroke-width="1.1" opacity="0.8"/>
+<text x="95.0" y="116.0" text-anchor="middle" font-family="monospace" font-size="11" fill="#1a1a1a">␣does</text>
+<rect x="894.0" y="100.0" width="74.0" height="24.0" rx="6" fill="none" stroke="#1a1a1a" stroke-width="1.1" opacity="0.8"/>
+<text x="931.0" y="116.0" text-anchor="middle" font-family="monospace" font-size="11" fill="#1a1a1a">␣legs</text>
+<rect x="804.0" y="100.0" width="74.0" height="24.0" rx="6" fill="none" stroke="#1a1a1a" stroke-width="1.1" opacity="0.8"/>
+<text x="841.0" y="116.0" text-anchor="middle" font-family="monospace" font-size="11" fill="#1a1a1a">␣eight</text>
+<rect x="984.0" y="100.0" width="74.0" height="24.0" rx="6" fill="none" stroke="#1a1a1a" stroke-width="1.1" opacity="0.8"/>
+<text x="1021.0" y="116.0" text-anchor="middle" font-family="monospace" font-size="11" fill="#1a1a1a">␣spiders</text>
+<rect x="1164.0" y="100.0" width="74.0" height="24.0" rx="6" fill="none" stroke="#1a1a1a" stroke-width="1.1" opacity="0.8"/>
+<text x="1201.0" y="116.0" text-anchor="middle" font-family="monospace" font-size="11" fill="#1a1a1a">织</text>
+<rect x="1254.0" y="100.0" width="74.0" height="24.0" rx="6" fill="none" stroke="#1a1a1a" stroke-width="1.1" opacity="0.8"/>
+<text x="1291.0" y="116.0" text-anchor="middle" font-family="monospace" font-size="11" fill="#1a1a1a">␣no</text>
+<text x="46" y="183.3" text-anchor="end" font-family="monospace" font-size="11" fill="#1a1a1a" opacity="0.55">L29</text>
+<rect x="58.0" y="166.0" width="74.0" height="24.0" rx="6" fill="none" stroke="#1a1a1a" stroke-width="1.1" opacity="0.8"/>
+<text x="95.0" y="182.0" text-anchor="middle" font-family="monospace" font-size="11" fill="#1a1a1a">␣does</text>
+<rect x="148.0" y="166.0" width="74.0" height="24.0" rx="6" fill="none" stroke="#1a1a1a" stroke-width="1.1" opacity="0.8"/>
+<text x="185.0" y="182.0" text-anchor="middle" font-family="monospace" font-size="11" fill="#1a1a1a">␣bones</text>
+<rect x="238.0" y="166.0" width="74.0" height="24.0" rx="6" fill="none" stroke="#1a1a1a" stroke-width="1.1" opacity="0.8"/>
+<text x="275.0" y="182.0" text-anchor="middle" font-family="monospace" font-size="11" fill="#1a1a1a">␣were</text>
+<rect x="984.0" y="166.0" width="74.0" height="24.0" rx="6" fill="none" stroke="#1a1a1a" stroke-width="1.1" opacity="0.8"/>
+<text x="1021.0" y="182.0" text-anchor="middle" font-family="monospace" font-size="11" fill="#1a1a1a">␣spiders</text>
+<rect x="804.0" y="166.0" width="74.0" height="24.0" rx="6" fill="none" stroke="#1a1a1a" stroke-width="1.1" opacity="0.8"/>
+<text x="841.0" y="182.0" text-anchor="middle" font-family="monospace" font-size="11" fill="#1a1a1a">␣eight</text>
+<rect x="1344.0" y="166.0" width="74.0" height="24.0" rx="6" fill="none" stroke="#1a1a1a" stroke-width="1.1" opacity="0.8"/>
+<text x="1381.0" y="182.0" text-anchor="middle" font-family="monospace" font-size="11" fill="#1a1a1a">腿</text>
+<rect x="1434.0" y="166.0" width="74.0" height="24.0" rx="6" fill="none" stroke="#1a1a1a" stroke-width="1.1" opacity="0.8"/>
+<text x="1471.0" y="182.0" text-anchor="middle" font-family="monospace" font-size="11" fill="#1a1a1a">␣wings</text>
+<text x="46" y="249.3" text-anchor="end" font-family="monospace" font-size="11" fill="#1a1a1a" opacity="0.55">L27</text>
+<rect x="328.0" y="232.0" width="74.0" height="24.0" rx="6" fill="none" stroke="#1a1a1a" stroke-width="1.1" opacity="0.8"/>
+<text x="365.0" y="248.0" text-anchor="middle" font-family="monospace" font-size="11" fill="#1a1a1a">␣legs</text>
+<rect x="418.0" y="232.0" width="74.0" height="24.0" rx="6" fill="none" stroke="#1a1a1a" stroke-width="1.1" opacity="0.8"/>
+<text x="455.0" y="248.0" text-anchor="middle" font-family="monospace" font-size="11" fill="#1a1a1a">␣are</text>
+<rect x="984.0" y="232.0" width="74.0" height="24.0" rx="6" fill="none" stroke="#1a1a1a" stroke-width="1.1" opacity="0.8"/>
+<text x="1021.0" y="248.0" text-anchor="middle" font-family="monospace" font-size="11" fill="#1a1a1a">␣spiders</text>
+<rect x="1434.0" y="232.0" width="74.0" height="24.0" rx="6" fill="none" stroke="#1a1a1a" stroke-width="1.1" opacity="0.8"/>
+<text x="1471.0" y="248.0" text-anchor="middle" font-family="monospace" font-size="11" fill="#1a1a1a">␣wings</text>
+<rect x="804.0" y="232.0" width="74.0" height="24.0" rx="6" fill="none" stroke="#1a1a1a" stroke-width="1.1" opacity="0.8"/>
+<text x="841.0" y="248.0" text-anchor="middle" font-family="monospace" font-size="11" fill="#1a1a1a">␣eight</text>
+<rect x="1344.0" y="232.0" width="74.0" height="24.0" rx="6" fill="none" stroke="#1a1a1a" stroke-width="1.1" opacity="0.8"/>
+<text x="1381.0" y="248.0" text-anchor="middle" font-family="monospace" font-size="11" fill="#1a1a1a">腿</text>
+<text x="46" y="315.3" text-anchor="end" font-family="monospace" font-size="11" fill="#1a1a1a" opacity="0.55">L25</text>
+<rect x="508.0" y="298.0" width="74.0" height="24.0" rx="6" fill="none" stroke="#1a1a1a" stroke-width="1.1" opacity="0.8"/>
+<text x="545.0" y="314.0" text-anchor="middle" font-family="monospace" font-size="11" fill="#1a1a1a">␣walked</text>
+<rect x="984.0" y="298.0" width="74.0" height="24.0" rx="6" fill="none" stroke="#1a1a1a" stroke-width="1.1" opacity="0.8"/>
+<text x="1021.0" y="314.0" text-anchor="middle" font-family="monospace" font-size="11" fill="#1a1a1a">␣spiders</text>
+<rect x="804.0" y="298.0" width="74.0" height="24.0" rx="6" fill="none" stroke="#1a1a1a" stroke-width="1.1" opacity="0.8"/>
+<text x="841.0" y="314.0" text-anchor="middle" font-family="monospace" font-size="11" fill="#1a1a1a">␣eight</text>
+<text x="46" y="381.3" text-anchor="end" font-family="monospace" font-size="11" fill="#1a1a1a" opacity="0.55">L23</text>
+<rect x="148.0" y="364.0" width="74.0" height="24.0" rx="6" fill="none" stroke="#1a1a1a" stroke-width="1.1" opacity="0.8"/>
+<text x="185.0" y="380.0" text-anchor="middle" font-family="monospace" font-size="11" fill="#1a1a1a">␣bones</text>
+<rect x="984.0" y="364.0" width="74.0" height="24.0" rx="6" fill="none" stroke="#1a1a1a" stroke-width="1.1" opacity="0.8"/>
+<text x="1021.0" y="380.0" text-anchor="middle" font-family="monospace" font-size="11" fill="#1a1a1a">␣spiders</text>
+<text x="46" y="447.3" text-anchor="end" font-family="monospace" font-size="11" fill="#1a1a1a" opacity="0.55">L21</text>
+<rect x="598.0" y="430.0" width="74.0" height="24.0" rx="6" fill="none" stroke="#1a1a1a" stroke-width="1.1" opacity="0.8"/>
+<text x="635.0" y="446.0" text-anchor="middle" font-family="monospace" font-size="11" fill="#1a1a1a">worm</text>
+<text x="46" y="513.3" text-anchor="end" font-family="monospace" font-size="11" fill="#1a1a1a" opacity="0.55">L19</text>
+<rect x="688.0" y="496.0" width="74.0" height="24.0" rx="6" fill="none" stroke="#1a1a1a" stroke-width="1.1" opacity="0.8"/>
+<text x="725.0" y="512.0" text-anchor="middle" font-family="monospace" font-size="11" fill="#1a1a1a">␣cock</text>
+<text x="46" y="579.3" text-anchor="end" font-family="monospace" font-size="11" fill="#1a1a1a" opacity="0.55">L17</text>
+<rect x="598.0" y="562.0" width="74.0" height="24.0" rx="6" fill="none" stroke="#1a1a1a" stroke-width="1.1" opacity="0.8"/>
+<text x="635.0" y="578.0" text-anchor="middle" font-family="monospace" font-size="11" fill="#1a1a1a">worm</text>
+<text x="46" y="645.3" text-anchor="end" font-family="monospace" font-size="11" fill="#1a1a1a" opacity="0.55">L15</text>
+<rect x="598.0" y="628.0" width="74.0" height="24.0" rx="6" fill="none" stroke="#1a1a1a" stroke-width="1.1" opacity="0.8"/>
+<text x="635.0" y="644.0" text-anchor="middle" font-family="monospace" font-size="11" fill="#1a1a1a">worm</text>
+</svg>

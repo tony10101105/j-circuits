@@ -1,5 +1,6 @@
 # Copyright 2026 Anthropic PBC
 # SPDX-License-Identifier: Apache-2.0
+# Modified from anthropics/jacobian-lens by Tung-Yu (Tony) Wu and his Claude.
 """The model interface the lens is typed against.
 
 Any model can be plugged in by implementing these members.
@@ -27,12 +28,16 @@ class LensModel(Protocol):
         tokenizer: Tokenizer used by the visualisation helpers; must provide
             ``decode(token_ids) -> str``. Fitting and :meth:`apply` never
             touch it.
+        unembed_weight: Raw unembedding matrix ``[vocab_size, d_model]``
+            (LM head weight, no final norm). Only :mod:`jlens.interventions`
+            reads it; fitting and :meth:`apply` never touch it.
     """
 
     n_layers: int
     d_model: int
     layers: Sequence[nn.Module]
     tokenizer: Any
+    unembed_weight: torch.Tensor
 
     def encode(self, text: str, *, max_length: int = ...) -> torch.Tensor:
         """Tokenize ``text`` to ``input_ids`` of shape ``[1, seq_len]`` on the

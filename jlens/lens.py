@@ -1,5 +1,6 @@
 # Copyright 2026 Anthropic PBC
 # SPDX-License-Identifier: Apache-2.0
+# Modified from anthropics/jacobian-lens by Tung-Yu (Tony) Wu and his Claude.
 """Applying a fitted Jacobian lens.
 
 A :class:`JacobianLens` holds the per-layer ``J_l`` matrices produced by
@@ -131,6 +132,19 @@ class JacobianLens:
             )
             merged[layer] = weighted_sum / n_total
         return cls(jacobians=merged, n_prompts=n_total, d_model=first.d_model)
+
+    def intervene(self, model: LensModel, edits, **kwargs):
+        """Context manager applying J-lens edits while open: see
+        :class:`jlens.interventions.Intervention` for edits and keywords.
+
+        Example::
+
+            with lens.intervene(model, [Swap(" spider", " ant")], layers=band):
+                lens_logits, model_logits, _ = lens.apply(model, prompt)
+        """
+        from jlens.interventions import Intervention
+
+        return Intervention(self, model, edits, **kwargs)
 
     def transport(self, residual: torch.Tensor, layer: int) -> torch.Tensor:
         """Map a residual at ``layer`` into the final-layer basis: ``J_l @ h``.
