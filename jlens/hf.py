@@ -186,7 +186,6 @@ def from_hf(
     tokenizer: Any,
     *,
     layout: Layout | None = None,
-    text_module: str | None = None,
     compile: bool = False,
     force_bos: bool = True,
 ) -> HFLensModel:
@@ -199,7 +198,6 @@ def from_hf(
         layout: Where the residual blocks / final norm / embedding / LM head
             live inside ``hf_model``. Auto-detected for the common HF families;
             pass explicitly only for unusual layouts.
-        text_module: Deprecated alias for ``layout=Layout(path=text_module)``.
         compile: Wrap each residual block in :func:`torch.compile`. Faster
             backward in :func:`jlens.fitting.fit` after a one-time compilation
             cost. Do not combine with ``device_map="auto"``.
@@ -209,10 +207,6 @@ def from_hf(
             attribute may have no effect for some fast-tokenizer
             configurations.
     """
-    if text_module is not None:
-        if layout is not None:
-            raise TypeError("pass at most one of layout= / text_module=")
-        layout = Layout(path=text_module)
     return HFLensModel(
         hf_model, tokenizer, layout=layout, compile=compile, force_bos=force_bos
     )

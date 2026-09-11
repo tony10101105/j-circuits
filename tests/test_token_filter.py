@@ -21,6 +21,7 @@ from jlens.token_filter import MAX_TOKENS_PER_CALL, select_noise_tokens
 from tests.tiny import TinyDecoder
 
 PROMPT = "spin spin web"
+MODEL = "claude-opus-5"
 
 
 @pytest.fixture()
@@ -71,7 +72,7 @@ def test_request_carries_the_prompt_and_every_offered_token(circuit):
     record = {}
     tokens = circuit.tokens()
     select_noise_tokens(
-        PROMPT, tokens, client=fake_client({"remove": []}, record=record)
+        PROMPT, tokens, MODEL, client=fake_client({"remove": []}, record=record)
     )
 
     sent = record["messages"][0]["content"]
@@ -93,7 +94,7 @@ def test_only_offered_ids_can_be_dropped(circuit):
             {"id": 99999, "reason": "non_semantic"},
         ]
     }
-    chosen = select_noise_tokens(PROMPT, tokens, client=fake_client(payload))
+    chosen = select_noise_tokens(PROMPT, tokens, MODEL, client=fake_client(payload))
     assert chosen == {real: "irrelevant"}
 
 
@@ -102,20 +103,26 @@ def test_empty_token_list_makes_no_request():
         raise AssertionError("should not call the API for an empty list")
 
     client = types.SimpleNamespace(messages=types.SimpleNamespace(create=explode))
-    assert select_noise_tokens(PROMPT, [], client=client) == {}
+    assert select_noise_tokens(PROMPT, [], MODEL, client=client) == {}
 
 
 def test_bad_replies_raise_rather_than_silently_dropping_nothing(circuit):
     tokens = circuit.tokens()
     with pytest.raises(ValueError, match="not JSON"):
-        select_noise_tokens(PROMPT, tokens, client=fake_client("sorry, no"))
+        select_noise_tokens(PROMPT, tokens, MODEL, client=fake_client("sorry, no"))
     with pytest.raises(ValueError, match="declined"):
         select_noise_tokens(
-            PROMPT, tokens, client=fake_client({"remove": []}, stop_reason="refusal")
+            PROMPT,
+            tokens,
+            MODEL,
+            client=fake_client({"remove": []}, stop_reason="refusal"),
         )
     with pytest.raises(ValueError, match="max_tokens"):
         select_noise_tokens(
-            PROMPT, tokens, client=fake_client({"remove": []}, stop_reason="max_tokens")
+            PROMPT,
+            tokens,
+            MODEL,
+            client=fake_client({"remove": []}, stop_reason="max_tokens"),
         )
 
 
@@ -127,7 +134,7 @@ def test_oversized_token_list_raises_before_spending_a_call():
 
     client = types.SimpleNamespace(messages=types.SimpleNamespace(create=explode))
     with pytest.raises(ValueError, match="MAX_TOKENS_PER_CALL"):
-        select_noise_tokens(PROMPT, tokens, client=client)
+        select_noise_tokens(PROMPT, tokens, MODEL, client=client)
 
 
 # --------------------------------------------------------------------------- #
@@ -158,7 +165,7 @@ def test_error_nodes_are_never_offered_to_the_filter(circuit):
 
     record = {}
     select_noise_tokens(
-        PROMPT, tokens, client=fake_client({"remove": []}, record=record)
+        PROMPT, tokens, MODEL, client=fake_client({"remove": []}, record=record)
     )
     assert ERROR_TOKEN not in record["messages"][0]["content"]
 
@@ -166,7 +173,9 @@ def test_error_nodes_are_never_offered_to_the_filter(circuit):
 def test_a_hallucinated_error_id_cannot_delete_the_error_nodes(circuit):
     """Second line of defence: unoffered ids are already ignored."""
     payload = {"remove": [{"id": ERROR_TOKEN_ID, "reason": "non_semantic"}]}
-    chosen = select_noise_tokens(PROMPT, circuit.tokens(), client=fake_client(payload))
+    chosen = select_noise_tokens(
+        PROMPT, circuit.tokens(), MODEL, client=fake_client(payload)
+    )
     assert chosen == {}
     kept = circuit.drop_tokens(chosen)
     assert sum(1 for v in kept.nodes.values() for n in v if n.is_error) == sum(

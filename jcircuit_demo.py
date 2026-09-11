@@ -35,7 +35,7 @@ def parse_args() -> argparse.Namespace:
         "--lens-file",
         default="qwen3-4b/jlens/Salesforce-wikitext/Qwen3-4B_jacobian_lens.pt",
     )
-    p.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
+    p.add_argument("--device", default="cuda")
     p.add_argument(
         "--prompt",
         default="Q: How many legs does the animal that barks have?\nA: It has",
@@ -47,7 +47,7 @@ def parse_args() -> argparse.Namespace:
         choices=(1, 2),
         help="1 = dense graph, 2 = dense + per-layer pruning",
     )
-    p.add_argument("--k", type=int, default=5, help="concepts per layer")
+    p.add_argument("--k", type=int, default=5, help="concepts per ``(layer, position)`` block")
     p.add_argument(
         "--no-error-nodes",
         dest="error_nodes",
@@ -59,60 +59,56 @@ def parse_args() -> argparse.Namespace:
         "--selection",
         default="pursuit",
         choices=("pursuit", "topk"),
-        help="pursuit = sparse non-negative decomposition; topk = ranked readout",
+        help="method to extract concepts in each block. pursuit = sparse non-negative decomposition; topk = ranked readout",
     )
     p.add_argument(
         "--estimator",
         default="eap",
         choices=("eap", "ig"),
-        help="eap = gradient at the clean point (default); ig = averaged along "
-        "the ablation path — ~3x slower, far more faithful per-edge",
+        help="attribution calculation method. eap = gradient at the clean point; ig = averaged along the ablation path—slower but more precise",
     )
     p.add_argument(
-        "--ig-steps", type=int, default=2, help="path samples for --estimator ig"
+        "--ig-steps", type=int, default=2, help="number of path samples for eap-ig if `--estimator ig`"
     )
     p.add_argument(
         "--stride",
         type=int,
         default=2,
-        help="layer gap between levels; >1 is cheaper and coarser, and the band "
-        "is truncated at the top if it does not divide evenly (default: 2)",
+        help="layer gap between levels; >1 is cheaper and coarser, and the band is truncated at the top if it does not divide evenly",
     )
     p.add_argument(
         "--layer-top-percentile",
         type=float,
         default=100.0,
-        help="upper bound percentile for the selected layer band (default: 100)",
+        help="upper bound percentile for the selected layer band",
     )
     p.add_argument(
         "--layer-bottom-percentile",
         type=float,
         default=20.0,
-        help="lower bound percentile for the selected layer band (default: 20)",
+        help="lower bound percentile for the selected layer band",
     )
     p.add_argument(
         "--prune-percent",
         type=float,
         default=20.0,
-        help="mode 2: percentage of each layer pair's edges to keep",
+        help="for mode 2: percentage of each layer pair's edges to keep",
     )
     p.add_argument(
         "--roots",
         default="last",
-        help="mode 2: whose top-layer concepts pruning descends from — 'last' "
-        "(default), 'all', or comma-separated token indices/text",
+        help="mode 2: whose top-layer concepts pruning descends from — 'last', 'all', or comma-separated token indices/text",
     )
     p.add_argument(
         "--llm-token-filter-pruning",
         action="store_true",
-        help="mode 2: send the pruned graph's tokens and the prompt to Claude, "
-        "and drop the ones it judges non-semantic or irrelevant to this "
-        "scenario (needs the anthropic SDK and credentials)",
+        help="mode 2: send the pruned graph's tokens and the prompt to an external LLM, "
+        "and drop the ones it judges non-semantic or irrelevant to this scenario",
     )
     p.add_argument(
         "--llm-filter-model",
-        default=None,
-        help="model for --llm-token-filter-pruning (default: claude-sonnet-5)",
+        default="claude-opus-5",
+        help="model for --llm-token-filter-pruning",
     )
     p.add_argument(
         "--positions",
@@ -156,8 +152,6 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    # HF_TOKEN for the gated downloads, ANTHROPIC_API_KEY for --llm-token-filter
-    # -pruning. Anything already exported wins over the file.
     loaded = jlens.load_dotenv()
     if loaded:
         print(f"loaded from .env: {', '.join(loaded)}")
@@ -165,8 +159,7 @@ def main() -> None:
     import transformers
 
     hf = transformers.AutoModelForCausalLM.from_pretrained(
-        args.model, dtype=torch.bfloat16 if args.device.startswith("cuda") else None
-    ).to(args.device)
+        args.model, dtype=torch.bfloat16).to(args.device)
     tok = transformers.AutoTokenizer.from_pretrained(args.model)
     model = jlens.from_hf(hf, tok)
     lens = jlens.JacobianLens.from_pretrained(args.lens, filename=args.lens_file)
@@ -321,9 +314,9 @@ def main() -> None:
     )
 
     if args.llm_token_filter_pruning:
-        from jlens.token_filter import DEFAULT_MODEL, select_noise_tokens
+        from jlens.token_filter import select_noise_tokens
 
-        model_id = args.llm_filter_model or DEFAULT_MODEL
+        model_id = args.llm_filter_model
         tokens = pruned.tokens()
         print(f"=== LLM TOKEN FILTER ({model_id}, {len(tokens)} concepts)")
         t0 = time.perf_counter()

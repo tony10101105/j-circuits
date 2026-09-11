@@ -1,186 +1,18 @@
 # Copyright 2026 Tung-Yu (Tony) Wu
 # SPDX-License-Identifier: Apache-2.0
 # Added by Tung-Yu (Tony) Wu and his Claude.
-"""J-circuit: layered concept-attribution graphs in J-lens coordinates.
+"""J-circuit: Tracing Chains of Internal Thought in Language Models.
 
 A J-circuit is a layered DAG whose nodes are *concepts at token positions* —
-the top-``k`` J-lens readouts of one position of one layer — and whose edges
-score how much a concept at layer ``l-s`` supports a concept at layer ``l``,
-where ``s`` is the ``stride`` between consecutive levels. Each level is
-therefore sliced into ``p`` position blocks of ``k`` concepts.
-
-Edge score (EAP, first order). Ablating a source concept moves the residual by
-the analytically known rank-1 step ``dh = -a_s * v_s`` at that position, so the
-effect on a target readout ``M = <v_t, h_l[q]>`` is::
-
-    A(s@l-s,p -> t@l,q) = a_s * <v_s, grad_{h_{l-s}[p]} M>
-
-with ``a_s = <v_s, h_{l-s}[p]>`` the source's clean coordinate and ``v`` the
-unit-normalised J-lens vectors of :func:`jlens.interventions.lens_vector`.
-
-Edges run between consecutive *levels* and obey attention's causal order,
-``p <= q``: a source may feed its own position (the residual stream) or any
-later one (attention). One batched VJP per layer pair — cotangents for every
-target node at once — yields the whole matrix, because a single backward
-already produces the gradient at *every* source position.
-
-Estimators. Because the corruption is a straight rank-1 path, the exact effect
-is a line integral, ``M_clean - M_ablated = int_0^1 a_s <v_s, grad M(h(a))> da``
-with ``h(a) = h - a*a_s*v_s`` — an identity, not an approximation.
-``estimator="eap"`` evaluates the integrand at ``a=0`` only;
-``estimator="ig"`` averages ``ig_steps`` midpoints of the path (EAP-IG).
-
-Which to use depends on what the number is for. Measured against real ablations
-on Qwen3-4B, over 540 pruned-surviving edges from six prompts with instruction
-conflict (sycophancy, deception, refusal, evaluation-awareness):
-
-===========  ========  =======  =======  ============
-estimator      median      p90    worst   >10% off
-===========  ========  =======  =======  ============
-``"eap"``       3.24%   10.55%   56.14%   61 of 540
-``"ig"``        0.54%    1.98%    7.69%    0 of 540
-===========  ========  =======  =======  ============
-
-EAP's *ranking* is fine either way — per-prompt Spearman 0.988–0.994 against
-the true ordering, and top-40 overlap 39–40 of 40 — so pruning and graph
-structure barely move. What EAP gets wrong is the magnitude of individual
-edges, and it errs in one direction: it systematically under-reports. On the
-sycophancy-math prompt the edge ``' incorrect' -> ' correct'`` is really 34.29
-and EAP calls it 19.81. Short factual prompts are much kinder to it (median
-1.03%), so an estimator validated on those does not transfer.
-
-Cost is a small multiple, not a large one. IG cannot share one backward across
-sources — the path point differs per source — but it still shares one perturbed
-forward across every target of a level. On a 30-level stride-1 band with 5
-positions and ``k=5`` (11,250 edges), building took 3.6 s with ``"eap"`` and
-11.4 s with ``"ig"``: **3.2x**. Refining individual edges after the fact is
-*worse* than rebuilding once past roughly 200 edges, because per-edge work
-throws away the target sharing too.
-
-Default is ``"eap"``: it is what the pruning and the figures need. Reach for
-``"ig"`` when a specific edge weight is going into a claim.
-
-Levels and ``stride``. Construction runs top-down from ``layer_top`` in steps of
-``stride``, so the levels are ``layer_bottom, layer_bottom + stride, ...`` up to
-``layer_top``. Each level is a complete cut of the residual stream and every
-path through the circuit crosses each cut exactly once, so no edge double-counts
-influence another edge already carries — true for any single stride, since the
-layers *between* two levels are simply never cut. (Double counting is what
-happens when several strides are mixed into one graph, not what a coarse stride
-does.)
-
-What a larger stride buys is cost: ``(layer_top - layer_bottom) / stride`` VJP
-levels instead of one per layer, and only the level layers need a fitted
-Jacobian. On Qwen3-4B over layers 12..30, 5 positions and ``k=5``, stride 1
-takes 2.6 s for 6750 edges and stride 6 takes 0.4 s for 1125.
-
-What it costs is resolution, in two ways. An edge becomes the *total* effect
-over ``stride`` blocks, so whichever concepts mediate it inside that span are
-not in the graph at all. And the first-order EAP score drifts further from a
-true ablation the more blocks it linearises through. Against real ablations of
-the strongest same-position edge into layer 30, the relative error runs
-``0.5%, 0.2%, 0.3%, 1.2%, 5.4%, 10.0%`` at strides ``1, 2, 3, 4, 6, 8`` — so up
-to about three blocks a score is still worth reading as a number, and past that
-it is a ranking.
-
-``layer_top - layer_bottom`` need not be a multiple of ``stride``. The band is
-anchored at ``layer_bottom`` and stepped upward, so a leftover shorter than one
-stride is dropped from the top: ``layer_bottom=20, layer_top=23, stride=2``
-builds 20 -> 22 and lowers ``layer_top`` to 22 rather than scoring a ragged
-final level of 22 -> 23.
-
-Two modes:
-
-``mode=1`` — dense. Every causal pair is kept: ``k**2 * p*(p+1)/2`` edges per
-level pair when all positions are in play.
-``mode=2`` — dense, then Circuit-Tracing-style top-down pruning. At each layer
-pair only the strongest ``prune_percent`` of edges (ranked by ``|score|``)
-survive; a source node left with no surviving edge is dropped and does not
-appear as a target when the next pair down is scored. There is no global edge
-budget, only this per-layer percentage.
-
-Pruning starts from the circuit's *roots*: the top-layer concepts whose readout
-counts as the output. By default that is the last token, whose readout is the
-model's next token — the one place a circuit is normally read. The per-layer
-percentage is then spent entirely on the cone feeding that position, rather than
-shared with concepts nobody is going to look at. ``roots="all"`` restores the
-descent from every position.
-
-``mode=2`` is ``mode=1`` followed by :meth:`JCircuit.prune`: both call the same
-selection rule on the same restricted edge sets, so in exact arithmetic they
-give the same circuit. Running ``mode=2`` directly is cheaper — dead targets
-are never scored, and only surviving edges are ever materialised.
-
-The two paths are not bit-identical in reduced precision, though: ``mode=2``
-batches fewer cotangents into each VJP, and a different batch size changes the
-bf16 reduction order. Measured on Qwen3-4B, scores agree to ~1e-2 on magnitudes
-reaching 45. Because pruning ranks by ``|score|``, two edges tied to within that
-margin can come out ordered differently: on a 1300-edge circuit built with
-``roots="last"``, one edge of the 1300 differed. Build ``mode=1`` once and
-:meth:`~JCircuit.prune` it when you need a circuit reproducible across runs of
-different ``prune_percent`` or ``roots``.
-
-Two properties of concept graphs are worth knowing before reading one (both
-measured on Qwen3-4B at stride 1):
-
-- **Persistence dominates.** 95–98% of a same-position stride-1 edge is the
-  residual stream carrying a concept forward unchanged; only the remainder is
-  computation. That share is analytic (``a_s * <v_s^{l-1}, v_t^l>``), so
-  subtract it to see the compute — :attr:`Edge.identity` / :attr:`Edge.computed`.
-  Cross-position edges have no residual path at all, so their identity is 0 and
-  every bit of their score is attention moving information.
-- **Named concepts leak.** The ``k`` lens directions of a block span only part
-  of the gradient arriving at a target, so path sums over circuit edges
-  under-report the total effect. :attr:`JCircuit.coverage` and
-  :meth:`JCircuit.error_mass` measure the gap — this codebase's analogue of
-  Circuit Tracing's error node. Over L22..L28 at stride 1 with ``k=5``, the
-  named directions carry **0.44** of the incoming gradient norm. Raising ``k``
-  to 20 only reaches 0.50, so the remainder is not simply an under-sized
-  concept set. Attention is where it goes: same-position gradients are 0.49
-  named, cross-position ones **0.09**. For scale, a random 5-dimensional
-  subspace of 2560 would capture 0.04, so 0.44 is ten times alignment, not
-  noise — the leak and the signal are both real. Treat scores as a ranking over
-  concepts, not as an exhaustive decomposition.
-
-Error nodes. Because the leak is real, each ``(layer, position)`` block also
-carries one node past its named ranks standing for what those concepts cannot
-express: ``r = h - P h``, with ``P`` the orthogonal projector onto their span.
-It is a node like any other — it has an activation (``||r||``, which is exactly
-``<r_hat, h>``), scored edges into every causal target, and it is pruned by the
-same rule, so a block whose leftover does nothing simply loses it. Turn the
-whole thing off with ``error_nodes=False``.
-
-What it shows, measured on Qwen3-4B over L22..L28 at stride 1 with ``k=5``: the
-error node holds **97.5%** of the residual's norm and its activation runs 6.6x
-the strongest named concept's, yet its edges carry only **20%** of the graph's
-total ``|A|``. The named concepts are 2.5% of the length and 80% of the
-influence. That enormous enrichment is the paper's "J-space is a small share of
-variance but causally privileged" claim, measured from both sides at once.
-Raising ``k`` to 20 pulls the error share down to 7.9%.
-
-The error node is not a formality: at ``k=5``, 18 of 30 survive a 20% prune and
-they source 56 of the 275 surviving edges. Read their ``computed``, not their
-``score`` — because the activation is so large, even a slight overlap between
-the leftover direction and a target's lens vector produces a big ``identity``,
-and most error edges are nearly pure carry.
-
-Three things follow from the definition and are worth knowing:
-
-- **Sources only.** An error node is what nothing explains, so asking what
-  explains it is not a question the graph should answer, and an unnamed root is
-  not something a circuit is read out of. They are leaves: no incoming edges at
-  any layer, and ``layer_top`` carries none at all.
-- **Orthogonal, not the pursuit residual.** Pursuit's own leftover
-  ``h - sum(c_i v_i)`` is not orthogonal to the atoms it picked (its
-  coefficients are clamped non-negative), so an error node built from it would
-  re-carry influence the named edges already claim. The orthogonal residual is
-  the unique choice that double counts nothing, and it is defined under
-  ``selection="topk"`` too, which has no coefficients.
-- **No vocabulary entry.** ``token_id`` is :data:`ERROR_TOKEN_ID` and the
-  direction depends on the prompt, so it is stored on the circuit rather than
-  recovered from the id: use :meth:`JCircuit.direction`, which handles both
-  kinds. It also means an error node cannot be steered or swapped — the
-  :class:`~jlens.interventions.Intervention` API resolves token ids.
+the top-``k`` J-lens readouts of one position at one layer, plus an optional
+error node standing for what those concepts cannot express — and whose edges
+score how much a source concept supports a concept one level above it. Scores
+are first-order attribution (EAP, or path-integrated EAP-IG) against the
+rank-1 residual step that ablating a source concept would produce, computed a
+level pair at a time with one batched VJP; ``mode=2`` additionally prunes the
+graph top-down from its roots. :func:`build_jcircuit` is the entry point and
+:class:`JCircuit` is the result, carrying the nodes, edges, and the readout
+and diagnostic helpers.
 """
 
 from __future__ import annotations
@@ -199,63 +31,22 @@ from jlens.pursuit import pursue_lens
 
 logger = logging.getLogger(__name__)
 
-#: Layer gap between consecutive levels when ``stride`` is not given. 1 cuts the
-#: residual stream at every block, the finest resolution the lens allows.
-DEFAULT_STRIDE = 1
-
-#: How an edge score is estimated. ``"eap"`` takes the gradient at the clean
-#: point; ``"ig"`` averages it along the ablation path (see the module
-#: docstring).
-ESTIMATORS = ("eap", "ig")
-
-#: Default path samples for ``estimator="ig"``. Measured on Qwen3-4B, 2 and 5
-#: are indistinguishable (median relative error 0.54% vs 0.51% over 540 edges),
-#: so the cheaper one is the default.
-DEFAULT_IG_STEPS = 2
-
 #: Perturbed forward rows batched at once under ``estimator="ig"``. Each row is
 #: one ``(source concept, path sample)`` pair and carries a full sequence, so
 #: this is the memory knob; it is capped by ``vjp_chunk``.
 IG_ROW_CHUNK = 8
 
-#: How a ``(layer, position)`` block picks its concepts. ``"pursuit"`` is the
-#: sparse non-negative decomposition of :mod:`jlens.pursuit`; ``"topk"`` is the
-#: plain ranked readout, which is more redundant but needs no solver.
-SELECTIONS = ("pursuit", "topk")
-
-
-class _RootsDefault:
-    """Sentinel for an unset ``roots``: ``"last"`` under ``mode=2``, and no
-    restriction under ``mode=1``, which is dense by definition. Passing
-    ``roots`` explicitly to a ``mode=1`` build is an error rather than a
-    silently ignored argument, which is what this distinguishes."""
-
-    def __repr__(self) -> str:  # pragma: no cover - cosmetic, shows in help()
-        return "'last' (mode 2) / unrestricted (mode 1)"
-
-
-ROOTS_DEFAULT = _RootsDefault()
-
-#: Dense circuits refuse to materialise more edges than this. Cross-position
-#: edges grow as ``p**2``, so a long prompt overruns it quickly; the error names
-#: the knobs (``positions``, ``k``, ``mode=2``) that bring it back down.
-MAX_DENSE_EDGES = 500_000
-
 _ZERO_NORM_EPS = 1e-8
 
 #: Token id carried by an error node. Negative so it can never collide with a
-#: real vocabulary entry, and shared across layers so the renderer stacks every
-#: error node of a position into one column, as it does for a real concept.
+#: real vocabulary entry.
 ERROR_TOKEN_ID = -1
 
 #: Display text for an error node.
 ERROR_TOKEN = "<error>"
 
 #: Singular values below this multiple of the largest are treated as outside the
-#: span when projecting onto a block's concept directions. The ``k`` lens vectors
-#: are not orthogonal — ``"topk"`` selection in particular returns near-duplicate
-#: directions — so the span can be rank-deficient and a plain basis would
-#: overstate what the concepts cover.
+#: span when projecting onto a block's concept directions.
 _SPAN_RANK_TOL = 1e-6
 
 
@@ -462,7 +253,7 @@ def _prune_levels(
     layer_bottom: int,
     percent: float,
     roots: list[int] | None = None,
-    stride: int = DEFAULT_STRIDE,
+    stride: int = 1,
 ) -> tuple[dict[int, list[Node]], list[Edge]]:
     """Top-down prune: keep ``percent`` of each level pair, drop dead sources.
 
@@ -594,7 +385,7 @@ class JCircuit:
     @property
     def stride(self) -> int:
         """Layer gap between consecutive levels."""
-        return int(self.hparams.get("stride", DEFAULT_STRIDE))
+        return int(self.hparams.get("stride", 1))
 
     @property
     def positions(self) -> list[int]:
@@ -1184,17 +975,17 @@ def build_jcircuit(
     selection: str = "pursuit",
     error_nodes: bool = True,
     estimator: str = "eap",
-    ig_steps: int = DEFAULT_IG_STEPS,
-    stride: int = DEFAULT_STRIDE,
+    ig_steps: int = 2,
+    stride: int = 1,
     layer_top: int | None = None,
     layer_bottom: int | None = None,
     layer_top_percentile: float = 95.0,
     layer_bottom_percentile: float = 20.0,
     prune_percent: float = 20.0,
-    roots: str | Sequence[int | str] | None = ROOTS_DEFAULT,
+    roots: str | Sequence[int | str] | None = None,
     positions: Sequence[int | str] | None = None,
     skip_bos: bool = True,
-    max_edges: int = MAX_DENSE_EDGES,
+    max_edges: int = 500_000,
     vjp_chunk: int = 32,
     max_seq_len: int = 512,
 ) -> JCircuit:
@@ -1244,8 +1035,8 @@ def build_jcircuit(
         prune_percent: ``mode=2`` only — percentage of each layer pair's edges
             to keep, by ``|score|``.
         roots: ``mode=2`` only — which top-layer concepts count as the
-            circuit's output, and so where pruning starts. Defaults to
-            ``"last"``: only the final position's top-layer concepts, the ones
+            circuit's output, and so where pruning starts. ``None`` (the
+            default) means ``"last"``: only the final position's, the ones
             whose readout is the model's next token. ``"all"`` keeps every
             position's, or name positions explicitly, as indices or decoded
             token text like ``"has"``. Restricting the roots spends the whole
@@ -1280,10 +1071,12 @@ def build_jcircuit(
         raise ValueError(f"stride must be >= 1, got {stride}")
     if mode not in (1, 2):
         raise ValueError(f"mode must be 1 (dense) or 2 (pruned), got {mode}")
-    if selection not in SELECTIONS:
-        raise ValueError(f"selection must be one of {SELECTIONS}, got {selection!r}")
-    if estimator not in ESTIMATORS:
-        raise ValueError(f"estimator must be one of {ESTIMATORS}, got {estimator!r}")
+    if selection not in ("pursuit", "topk"):
+        raise ValueError(
+            f"selection must be one of ('pursuit', 'topk'), got {selection!r}"
+        )
+    if estimator not in ("eap", "ig"):
+        raise ValueError(f"estimator must be one of ('eap', 'ig'), got {estimator!r}")
     if ig_steps < 1:
         raise ValueError(f"ig_steps must be >= 1, got {ig_steps}")
     if k < 1:
@@ -1353,9 +1146,8 @@ def build_jcircuit(
     seq_len = int(input_ids.shape[1])
     chosen = _resolve_positions(positions, input_ids, skip_bos, model.tokenizer)
 
-    given_roots = roots is not ROOTS_DEFAULT
     if mode == 1:
-        if given_roots:
+        if roots is not None:
             raise ValueError(
                 "roots applies to mode=2 only: mode 1 is the dense graph, which "
                 "keeps every top-layer concept by definition. Build it, then call "
@@ -1365,9 +1157,9 @@ def build_jcircuit(
     else:
         # Token text ("has") is resolvable here but not in JCircuit.prune, which
         # has no tokenizer, so turn it into indices before the shared root rule.
-        if not given_roots:
+        if roots is None:
             roots = "last"
-        elif roots is not None and not isinstance(roots, str):
+        elif not isinstance(roots, str):
             roots = _resolve_positions(list(roots), input_ids, False, model.tokenizer)
         root_positions = _root_positions(roots, chosen)
 

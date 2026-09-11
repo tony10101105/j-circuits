@@ -1,33 +1,23 @@
 # Copyright 2026 Tung-Yu (Tony) Wu
 # SPDX-License-Identifier: Apache-2.0
 # Added by Tung-Yu (Tony) Wu and his Claude.
-"""Ask Claude which of a circuit's concepts are noise, and drop them.
+"""Ask an LLM which of a circuit's concepts are noise, and drop them.
 
-A J-circuit's nodes come from a lens readout over the whole vocabulary, so a
-pruned graph still carries two kinds of concept nobody wants to read:
+Two kinds of concept are treated as noise:
 
-- **non-semantic** tokens — ``"\\n"``, ``"˘"``, ``"/sp"``, byte fragments,
-  markup and code punctuation that name no concept at all;
-- **off-topic** tokens — real words with no bearing on this prompt. On the
-  spider prompt, ``"约定"`` (agreement) and ``"好事"`` (good thing) are of this
-  kind: perfectly good words, unrelated to how many legs a spider has.
+- **non-semantic** tokens, such as ``"\\n"``, ``"˘"``, byte fragments and
+  punctuation;
+- **off-topic** tokens, which are real words unrelated to the prompt (e.g.
+  ``"car"`` on a prompt about spider legs).
 
-Both are plausibly lens noise rather than mechanism, and both crowd out the
-concepts that matter. Deciding which is which needs to read the prompt, which
-is what makes it a job for a language model rather than a heuristic.
+Judging whether a token is off-topic means reading the prompt, so an LLM does
+the classification instead of a heuristic. The LLM is called once through the
+Messages API with a JSON schema, and any ids that aren't in the circuit are
+ignored. This module only decides which tokens to drop; removing them is done
+by :meth:`jlens.circuit.JCircuit.drop_tokens`.
 
-This module only *chooses*; :meth:`jlens.circuit.JCircuit.drop_tokens` does the
-graph surgery, so the filtering rule is testable without a network call.
-
-The classification is one request against the Messages API with a JSON schema
-(``output_config.format``), so the reply is guaranteed to parse. Ids that are
-not in the circuit are ignored, which makes a hallucinated id harmless.
-
-Needs the ``anthropic`` extra (``pip install 'jlens[llm]'``) and credentials.
-``ANTHROPIC_API_KEY`` is read from the environment, which
-:func:`jlens.load_dotenv` will populate from a ``.env`` file; a profile from
-``ant auth login`` also works, since a bare ``anthropic.Anthropic()`` resolves
-either on its own.
+Requires ``pip install 'jlens[llm]'`` plus ``ANTHROPIC_API_KEY`` in the
+environment (call :func:`jlens.load_dotenv` first to read it from ``.env``).
 """
 
 from __future__ import annotations
@@ -36,13 +26,7 @@ import json
 import logging
 from collections.abc import Sequence
 
-from jlens._env import load_dotenv
-
 logger = logging.getLogger(__name__)
-
-#: Claude model used for the classification. Sonnet is the right tier here: the
-#: task is per-token classification against a short prompt, not reasoning.
-DEFAULT_MODEL = "claude-sonnet-5"
 
 #: Cap on the reply. Thinking is on by default on this model and shares the
 #: budget with the answer, so leave room for both.
@@ -122,20 +106,15 @@ def _client(api_key: str | None):
             "llm_token_filter_pruning needs the anthropic SDK: "
             "pip install 'jlens[llm]' (or pip install anthropic)"
         ) from exc
-    if api_key:
-        return anthropic.Anthropic(api_key=api_key)
-    # Pull ANTHROPIC_API_KEY out of a .env if it is not already exported; a bare
-    # client then resolves it (or ANTHROPIC_AUTH_TOKEN, or an `ant auth login`
-    # profile) on its own.
-    load_dotenv()
-    return anthropic.Anthropic()
+    # api_key=None makes the client read ANTHROPIC_API_KEY from the environment.
+    return anthropic.Anthropic(api_key=api_key)
 
 
 def select_noise_tokens(
     prompt: str,
     tokens: Sequence[tuple[int, str]],
+    model: str,
     *,
-    model: str = DEFAULT_MODEL,
     effort: str = "medium",
     max_tokens: int = DEFAULT_MAX_TOKENS,
     api_key: str | None = None,
