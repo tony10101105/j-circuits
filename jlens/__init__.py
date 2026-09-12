@@ -6,7 +6,7 @@ of decoder-transformer residuals."""
 
 from jlens._env import load_dotenv
 from jlens._logging import configure_logging
-from jlens.circuit import Coverage, Edge, JCircuit, Node, build_jcircuit
+from jlens.circuit import Edge, JCircuit, Node, build_jcircuit
 from jlens.fitting import fit, jacobian_for_prompt
 from jlens.hf import HFLensModel, Layout, from_hf
 from jlens.hooks import ActivationRecorder
@@ -26,7 +26,6 @@ from jlens.pursuit import gradient_pursuit, pursue_lens
 __all__ = [
     "Ablate",
     "ActivationRecorder",
-    "Coverage",
     "Edge",
     "HFLensModel",
     "Intervention",

@@ -111,7 +111,7 @@ def main():
             lens,
             model,
             prompt,
-            mode=1,
+            prune_percent=100.0, roots="all",
             k=args.k,
             stride=args.stride,
             layer_top=args.layer_top,

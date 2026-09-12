@@ -50,7 +50,7 @@ circuit = build_jcircuit(
     lens,
     model,
     PROMPT,
-    mode=1,
+    prune_percent=100.0, roots="all",
     k=5,
     stride=1,
     layer_top=TGT,

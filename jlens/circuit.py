@@ -9,8 +9,9 @@ error node standing for what those concepts cannot express — and whose edges
 score how much a source concept supports a concept one level above it. Scores
 are first-order attribution (EAP, or path-integrated EAP-IG) against the
 rank-1 residual step that ablating a source concept would produce, computed a
-level pair at a time with one batched VJP; ``mode=2`` additionally prunes the
-graph top-down from its roots. :func:`build_jcircuit` is the entry point and
+level pair at a time with one batched VJP, then pruned top-down from its
+roots to the strongest ``prune_percent`` of each level. :func:`build_jcircuit`
+is the entry point and
 :class:`JCircuit` is the result, carrying the nodes, edges, and the readout
 and diagnostic helpers.
 """
@@ -132,81 +133,29 @@ class Edge:
         return f"{self.source} -> {self.target}  A={self.score:+.4f}"
 
 
-@dataclass(frozen=True)
-class Coverage:
-    """How much of a target's incoming influence the named concepts can carry.
+def _level_budget(n_dense_edges: int, percent: float) -> int:
+    """How many edges one level pair may keep.
 
-    The gradient ``g = grad_{h_{l,p}} M_t`` is the whole of what one source
-    block can do to this target's readout. Only the component of ``g`` lying in
-    the span of that block's ``k`` selected lens directions can ever surface as
-    an edge; the rest flows through directions the circuit never names. That
-    remainder is this codebase's analogue of Circuit Tracing's *error node* —
-    real influence, with no node to attach it to.
+    ``percent`` of the level's *dense* edge count — the level as it was built,
+    counting every named target — not of the subset that is still reachable
+    part-way down the descent. Restricting ``roots``, or losing targets higher
+    up, therefore spends the same allowance on a narrower cone rather than
+    compounding the reduction at every level.
 
-    One row per ``(target, source position)``: every edge from that block into
-    that target shares the same gradient, so the split is a property of the
-    pair, not of the individual edges.
-
-    Attributes:
-        target: The concept whose readout the gradient was taken of.
-        source_layer: Layer the gradient was read at, ``target.layer - stride``.
-        source_position: Position within that layer.
-        named: ``||P_J g||``, the part inside the span of the block's concepts.
-        total: ``||g||``.
+    At least one edge, so a level pair never vanishes outright.
     """
-
-    target: Node
-    source_layer: int
-    source_position: int
-    named: float
-    total: float
-
-    @property
-    def fraction(self) -> float:
-        """``named / total`` in ``[0, 1]``: the share the edges can express.
-
-        ``nan`` when the gradient itself is zero — the target does not depend on
-        that block at all, so there is no influence to have missed. Reporting 0
-        there would read as "everything leaked", the opposite of the truth.
-        """
-        if self.total <= _ZERO_NORM_EPS:
-            return float("nan")
-        return self.named / self.total
-
-    @property
-    def error(self) -> float:
-        """``1 - fraction``: the error-node share (``nan`` for a zero gradient)."""
-        return 1.0 - self.fraction
-
-    def __str__(self) -> str:
-        return (
-            f"{self.target} <- L{self.source_layer}:{self.source_position}  "
-            f"named={self.fraction:.3f}"
-        )
+    return max(1, round(n_dense_edges * percent / 100.0))
 
 
-def _restrict_coverage(
-    coverage: Sequence[Coverage], nodes: dict[int, list[Node]]
-) -> tuple[Coverage, ...]:
-    """The coverage rows whose target survives in ``nodes``.
+def _keep_top_n(edges: list[Edge], n_keep: int) -> list[Edge]:
+    """The ``n_keep`` strongest of ``edges`` by ``|score|``, or all of them.
 
-    Coverage measures what a target's *own* gradient reaches, so it is unchanged
-    by pruning edges — dropping a weak edge does not make the influence it
-    carried disappear. Only rows for vanished targets are removed.
+    Shared by :func:`build_jcircuit` and :meth:`JCircuit.prune`. Survivors keep their input
+    order, so the result is deterministic and ties break by position in
+    ``edges``. Fewer than ``n_keep`` edges means all of them survive.
     """
-    alive = {n for v in nodes.values() for n in v}
-    return tuple(row for row in coverage if row.target in alive)
-
-
-def _keep_top_percent(edges: list[Edge], percent: float) -> list[Edge]:
-    """The pruning rule, shared by ``mode=2`` and :meth:`JCircuit.prune`.
-
-    Keeps the strongest ``percent`` of ``edges`` by ``|score|`` (at least one),
-    preserving the input order among survivors so the result is deterministic.
-    """
-    if not edges:
+    if not edges or n_keep <= 0:
         return []
-    n_keep = max(1, round(len(edges) * percent / 100.0))
     order = sorted(range(len(edges)), key=lambda i: -abs(edges[i].score))
     return [edges[i] for i in sorted(order[:n_keep])]
 
@@ -252,10 +201,10 @@ def _prune_levels(
     layer_top: int,
     layer_bottom: int,
     percent: float,
-    roots: list[int] | None = None,
+    roots: list[int] = None,
     stride: int = 1,
 ) -> tuple[dict[int, list[Node]], list[Edge]]:
-    """Top-down prune: keep ``percent`` of each level pair, drop dead sources.
+    """Top-down prune: keep ``percent`` of each dense level, drop dead sources.
 
     ``edges_by_layer[l]`` holds the edges into layer ``l``. ``roots``, when
     given, restricts the layer-``layer_top`` nodes the descent starts from, so
@@ -263,20 +212,23 @@ def _prune_levels(
     surviving ``(nodes, edges)``; iteration stops early if a level pair leaves
     no source alive.
     """
-    live = [n for n in nodes[layer_top] if not n.is_error]
-    if roots is not None:
-        keep = set(roots)
-        live = [n for n in live if n.position in keep]
-        if not live:
-            raise ValueError(
-                f"no concept at layer {layer_top} sits at a root position {sorted(keep)}"
-            )
+    all_live = [n for n in nodes[layer_top] if not n.is_error]
+    live = (
+        all_live if roots is None else [n for n in all_live if n.position in set(roots)]
+    )
+    if not live:
+        raise ValueError(
+            f"no concept at layer {layer_top} sits at a root position "
+            f"{sorted(set(roots))}"
+        )
     kept_nodes = {layer_top: live}
     kept_edges: list[Edge] = []
     for layer in range(layer_top, layer_bottom, -stride):
         live_set = set(live)
-        level = [e for e in edges_by_layer.get(layer, []) if e.target in live_set]
-        keep = _keep_top_percent(level, percent)
+        all_level = edges_by_layer.get(layer, [])
+        budget = _level_budget(len(all_level), percent)
+        level = [e for e in all_level if e.target in live_set]
+        keep = _keep_top_n(level, budget)
         if not keep:
             break
         kept_edges.extend(keep)
@@ -286,7 +238,7 @@ def _prune_levels(
             break
         kept_nodes[layer - stride] = kept
         # Error nodes stay in the graph as leaves but never become targets, so
-        # they cannot seed the next descent — the same rule the mode=2 build
+        # they cannot seed the next descent — the same rule the build
         # follows, or the two paths would disagree.
         live = [n for n in kept if not n.is_error]
         if not live:
@@ -299,75 +251,28 @@ class JCircuit:
     """A built J-circuit: concepts per layer, scored edges, and the settings used.
 
     Attributes:
-        nodes: ``{layer: [Node, ...]}``, ordered by position then lens rank. In
-            ``mode=2`` only surviving concepts are present.
+        nodes: ``{layer: [Node, ...]}``, ordered by position then lens rank.
+            Only concepts that survived pruning are present.
         edges: All scored edges, ordered top layer pair first.
         hparams: The settings the circuit was built with (see
             :func:`build_jcircuit`), plus ``n_levels`` and ``positions_resolved``.
-        mode: ``1`` (dense) or ``2`` (pruned).
-        coverage: One :class:`Coverage` row per ``(target, source position)``,
-            measuring how much of each target's incoming gradient the named
-            concepts span. Empty under ``estimator="ig"``, which never takes a
-            gradient at the clean point; see :meth:`error_mass`.
     """
 
     nodes: dict[int, list[Node]]
     edges: list[Edge]
     hparams: dict = field(default_factory=dict)
-    mode: int = 1
-    coverage: tuple[Coverage, ...] = ()
     error_directions: dict[tuple[int, int], torch.Tensor] = field(default_factory=dict)
 
     def direction(
         self, node: Node, lens: JacobianLens, model: LensModel
     ) -> torch.Tensor:
-        """The unit residual direction ``node`` stands for.
-
-        A named concept's direction is fixed geometry — its J-lens vector, which
-        :func:`jlens.interventions.lens_vector` recovers from the token id. An
-        error node has no token, and its direction depends on the prompt, so the
-        build stores it on the circuit; this method hides the difference.
-
-        Raises:
-            KeyError: If ``node`` is an error node from a circuit built without
-                ``error_nodes``, or one this circuit does not carry.
-        """
+        """The unit residual direction of the node."""
         if not node.is_error:
             from jlens.interventions import lens_vector
 
             v = lens_vector(lens, model, node.token_id, node.layer)
             return v / v.norm()
         return self.error_directions[(node.layer, node.position)]
-
-    def error_mass(self, layer: int | None = None) -> float:
-        """Share of incoming influence that no concept in this circuit names.
-
-        The gradient-weighted mean of :attr:`Coverage.error` — weighted by
-        ``total``, so a target whose readout barely depends on the layer below
-        cannot drag the average around. This is the aggregate form of Circuit
-        Tracing's error node: 0.0 would mean the ``k`` concepts per block span
-        every direction that matters.
-
-        Args:
-            layer: Restrict to gradients read at this source layer. ``None``
-                (default) pools every level.
-
-        Returns:
-            A share in ``[0, 1]``, or ``nan`` when there is nothing to measure
-            (an ``estimator="ig"`` build, or no gradient of any size).
-        """
-        rows = [
-            row
-            for row in self.coverage
-            # A zero gradient carries no influence to have missed, and its
-            # ``error`` is nan, which would poison the sum rather than weigh 0.
-            if row.total > _ZERO_NORM_EPS
-            and (layer is None or row.source_layer == layer)
-        ]
-        weight = sum(row.total for row in rows)
-        if not rows or weight <= _ZERO_NORM_EPS:
-            return float("nan")
-        return sum(row.error * row.total for row in rows) / weight
 
     @property
     def layers(self) -> list[int]:
@@ -402,7 +307,7 @@ class JCircuit:
 
     def __repr__(self) -> str:
         return (
-            f"JCircuit(mode={self.mode}, layers={self.layer_top}..{self.layer_bottom}, "
+            f"JCircuit(layers={self.layer_top}..{self.layer_bottom}, "
             f"k={self.hparams.get('k')}, positions={len(self.positions)}, "
             f"nodes={sum(len(v) for v in self.nodes.values())}, edges={len(self.edges)})"
         )
@@ -410,18 +315,20 @@ class JCircuit:
     def prune(
         self, percent: float = 20.0, *, roots: str | Sequence[int] | None = "last"
     ) -> JCircuit:
-        """Return the ``mode=2`` circuit obtained by pruning this one.
+        """Return the circuit obtained by pruning this one further.
 
-        Applies the same top-down rule ``build_jcircuit(mode=2)`` uses, so
-        ``build(mode=1).prune(p, roots=r)`` and
-        ``build(mode=2, prune_percent=p, roots=r)`` agree (exactly in exact
-        arithmetic; see the module docstring for the reduced precision caveat).
+        Applies the same top-down rule :func:`build_jcircuit` uses, so
+        ``build(prune_percent=100, roots="all").prune(p, roots=r)`` and
+        ``build(prune_percent=p, roots=r)`` agree.
 
         Args:
-            percent: Percentage of each layer pair's edges to keep, by
-                ``|score|``. At least one edge per pair always survives.
+            percent: Percentage of each layer pair's *dense* edge count to
+                keep, by ``|score|``. The budget ignores how much of the level
+                is still reachable, so a narrow cone keeps whichever is smaller
+                — its allowance, or every edge it has. At least one edge per
+                pair always survives.
             roots: Which top-layer concepts count as the circuit's output, and
-                therefore where the descent starts. ``"last"`` (default) keeps
+                therefore where the descent starts. ``"last"`` keeps
                 only the final position, ``"all"`` every position, or name
                 positions explicitly. Token text is not accepted here — this
                 method has no tokenizer; pass it to :func:`build_jcircuit`
@@ -449,13 +356,10 @@ class JCircuit:
         hparams = dict(self.hparams)
         hparams["prune_percent"] = percent
         hparams["roots"] = chosen
-        hparams["mode"] = 2
         return JCircuit(
             nodes=kept_nodes,
             edges=kept_edges,
             hparams=hparams,
-            mode=2,
-            coverage=_restrict_coverage(self.coverage, kept_nodes),
             error_directions=dict(self.error_directions),
         )
 
@@ -543,8 +447,6 @@ class JCircuit:
             },
             edges=edges,
             hparams=hparams,
-            mode=self.mode,
-            coverage=tuple(r for r in self.coverage if r.target in alive),
             error_directions=dict(self.error_directions),
         )
 
@@ -788,38 +690,6 @@ def _span_basis(directions: torch.Tensor) -> torch.Tensor:
     return u[:, :rank]
 
 
-def _coverage_split(
-    grads: torch.Tensor,
-    source_dirs: torch.Tensor,
-    source_pos: torch.Tensor,
-    unique_positions: torch.Tensor,
-    named: torch.Tensor,
-) -> dict[int, tuple[torch.Tensor, torch.Tensor]]:
-    """``(||P_J g||, ||g||)`` per target, for each source position.
-
-    ``grads`` is ``[n_target, seq, d]``: the gradient of each target's readout
-    at every source position, which is what one batched VJP already produces.
-    Projecting it onto the span of that position's concept directions costs a
-    ``[k, k]``-sized SVD per position, so this rides along for free.
-
-    ``named`` masks out error-node directions. The question this answers is how
-    much of the influence can be given a *name*; the error node exists precisely
-    to account for the rest, so counting it here would define the gap away.
-    """
-    out: dict[int, tuple[torch.Tensor, torch.Tensor]] = {}
-    for position_value in unique_positions:
-        place = int(position_value)
-        basis = _span_basis(source_dirs[(source_pos == position_value) & named])
-        at_position = grads[:, place]  # [n_target, d]
-        inside = (
-            (at_position @ basis).norm(dim=1)
-            if basis.shape[1]
-            else torch.zeros_like(at_position[:, 0])
-        )
-        out[place] = (inside, at_position.norm(dim=1))
-    return out
-
-
 def _score_layer_pair(
     activations: dict[int, torch.Tensor],
     target_layer: int,
@@ -828,10 +698,9 @@ def _score_layer_pair(
     source_dirs: torch.Tensor,
     source_pos: torch.Tensor,
     source_acts: torch.Tensor,
-    source_named: torch.Tensor,
     stride: int,
     chunk: int,
-) -> tuple[torch.Tensor, dict[int, tuple[torch.Tensor, torch.Tensor]]]:
+) -> torch.Tensor:
     """EAP scores ``[n_source, n_target]`` for one level pair ``stride`` apart.
 
     One batched VJP per chunk of targets. A single backward already carries the
@@ -844,16 +713,13 @@ def _score_layer_pair(
     through however many blocks separate them, giving the total effect over the
     span.
 
-    Returns the score matrix and, from the same gradients, the
-    :class:`Coverage` split per source position (see :func:`_coverage_split`).
+    Returns the ``[n_source, n_target]`` score matrix.
     """
     source_layer = target_layer - stride
     out = activations[target_layer]
     n_target = target_dirs.shape[0]
     scores = torch.zeros(source_dirs.shape[0], n_target, device=source_dirs.device)
     unique_positions = source_pos.unique()
-    named = torch.zeros(n_target, len(unique_positions), device=source_dirs.device)
-    total = torch.zeros_like(named)
 
     for start in range(0, n_target, chunk):
         stop = min(start + chunk, n_target)
@@ -872,19 +738,7 @@ def _score_layer_pair(
         for position_value in unique_positions:
             mask = source_pos == position_value
             scores[mask, start:stop] = source_dirs[mask] @ grads[:, position_value].T
-        split = _coverage_split(
-            grads, source_dirs, source_pos, unique_positions, source_named
-        )
-        for slot, position_value in enumerate(unique_positions):
-            named[start:stop, slot], total[start:stop, slot] = split[
-                int(position_value)
-            ]
-
-    coverage = {
-        int(position_value): (named[:, slot], total[:, slot])
-        for slot, position_value in enumerate(unique_positions)
-    }
-    return scores * source_acts.unsqueeze(1), coverage
+    return scores * source_acts.unsqueeze(1)
 
 
 def _score_layer_pair_ig(
@@ -970,7 +824,6 @@ def build_jcircuit(
     model: LensModel,
     prompt: str | torch.Tensor,
     *,
-    mode: int = 1,
     k: int = 5,
     selection: str = "pursuit",
     error_nodes: bool = True,
@@ -982,10 +835,9 @@ def build_jcircuit(
     layer_top_percentile: float = 95.0,
     layer_bottom_percentile: float = 20.0,
     prune_percent: float = 20.0,
-    roots: str | Sequence[int | str] | None = None,
+    roots: str | Sequence[int | str] | None = "last",
     positions: Sequence[int | str] | None = None,
     skip_bos: bool = True,
-    max_edges: int = 500_000,
     vjp_chunk: int = 32,
     max_seq_len: int = 512,
 ) -> JCircuit:
@@ -1000,9 +852,7 @@ def build_jcircuit(
         model: The model to analyse.
         prompt: Text (encoded via ``model.encode``) or ``input_ids`` of shape
             ``[1, seq_len]``.
-        mode: ``1`` for the dense graph, ``2`` to additionally prune (see the
-            module docstring).
-        k: Concepts per ``(layer, position)`` block.
+        k: Number of concepts per ``(layer, position)`` block.
         selection: How those concepts are chosen. ``"pursuit"`` decomposes the
             residual into a sparse non-negative combination of lens vectors
             (:mod:`jlens.pursuit`), so near-duplicate spellings of one concept
@@ -1032,19 +882,19 @@ def build_jcircuit(
             ``layer_bottom`` is not given. The default skips the earliest
             layers, where the lens mostly reads formatting and punctuation
             rather than concepts.
-        prune_percent: ``mode=2`` only — percentage of each layer pair's edges
-            to keep, by ``|score|``.
-        roots: ``mode=2`` only — which top-layer concepts count as the
-            circuit's output, and so where pruning starts. ``None`` (the
-            default) means ``"last"``: only the final position's, the ones
-            whose readout is the model's next token. ``"all"`` keeps every
-            position's, or name positions explicitly, as indices or decoded
-            token text like ``"has"``. Restricting the roots spends the whole
-            per-layer percentage on the cone that reaches them, and needs only
-            ``k`` cotangents in the top layer pair's VJP rather than ``p*k``.
-            Passing it to a ``mode=1`` build raises, since a dense graph keeps
-            every top-layer concept by definition.
-        positions: Token positions to build over (Python indexing), or decoded
+        prune_percent: Percentage of each layer pair's *dense* edge count to
+            keep, by ``|score|``. The allowance is set by the full level, not
+            by the part still reachable, so it does not compound as the descent
+            narrows. ``100`` keeps every edge, which is the dense graph.
+        roots: Which top-layer concepts count as the circuit's output, and
+            so where pruning starts. ``"last"`` (the default) takes only the
+            final position's, the ones whose readout is the model's next token.
+            ``"all"`` (or ``None``) keeps every position's, or name positions
+            explicitly, as indices or decoded token text like ``"has"``.
+            Restricting the roots spends the whole per-layer percentage on the
+            cone that reaches them, and needs only ``k`` cotangents in the top
+            layer pair's VJP rather than ``p*k``.
+        positions: Token positions to build over, or decoded
             token text such as ``"legs"``. Each text value selects every exact
             matching decoded token sequence, including words split across
             multiple tokens. ``None`` takes every position, minus BOS when
@@ -1052,8 +902,6 @@ def build_jcircuit(
         skip_bos: Drop position 0 when ``positions`` is ``None``. Its
             attention-sink residual has an outsized norm, which makes its
             coordinates and edges spuriously large.
-        max_edges: Refuse to build a dense circuit larger than this. Ignored
-            for ``mode=2``, which only materialises survivors.
         vjp_chunk: Target nodes per batched VJP. Lower it if a long prompt runs
             the accelerator out of memory.
         max_seq_len: Truncation length when ``prompt`` is text.
@@ -1062,15 +910,13 @@ def build_jcircuit(
         The built :class:`JCircuit`.
 
     Raises:
-        ValueError: If ``stride < 1`` or is wider than the layer range, ``mode``
-            is not 1 or 2, ``k < 1``, the layer range is empty or a level is not
-            fitted, a position or root is out of range, ``roots`` restricts a
-            ``mode=1`` build, or a dense circuit would exceed ``max_edges``.
+        ValueError: If ``stride < 1`` or is wider than the layer range,
+            ``k < 1``, ``prune_percent`` is outside ``(0, 100]``, the layer
+            range is empty or a level is not fitted, or a position or root is
+            out of range.
     """
     if stride < 1:
         raise ValueError(f"stride must be >= 1, got {stride}")
-    if mode not in (1, 2):
-        raise ValueError(f"mode must be 1 (dense) or 2 (pruned), got {mode}")
     if selection not in ("pursuit", "topk"):
         raise ValueError(
             f"selection must be one of ('pursuit', 'topk'), got {selection!r}"
@@ -1083,7 +929,7 @@ def build_jcircuit(
         raise ValueError(f"k must be >= 1, got {k}")
     if vjp_chunk < 1:
         raise ValueError(f"vjp_chunk must be >= 1, got {vjp_chunk}")
-    if mode == 2 and not 0 < prune_percent <= 100:
+    if not 0 < prune_percent <= 100:
         raise ValueError(f"prune_percent must be in (0, 100], got {prune_percent}")
 
     fitted = lens.source_layers
@@ -1146,36 +992,11 @@ def build_jcircuit(
     seq_len = int(input_ids.shape[1])
     chosen = _resolve_positions(positions, input_ids, skip_bos, model.tokenizer)
 
-    if mode == 1:
-        if roots is not None:
-            raise ValueError(
-                "roots applies to mode=2 only: mode 1 is the dense graph, which "
-                "keeps every top-layer concept by definition. Build it, then call "
-                "JCircuit.prune(percent, roots=...)"
-            )
-        root_positions = None
-    else:
-        # Token text ("has") is resolvable here but not in JCircuit.prune, which
-        # has no tokenizer, so turn it into indices before the shared root rule.
-        if roots is None:
-            roots = "last"
-        elif not isinstance(roots, str):
-            roots = _resolve_positions(list(roots), input_ids, False, model.tokenizer)
-        root_positions = _root_positions(roots, chosen)
-
-    if mode == 1:
-        # Causal pairs per level pair: for each target position, every source
-        # position at or before it, times k^2 concept pairs.
-        pairs = sum(sum(1 for p in chosen if p <= q) for q in chosen)
-        projected = pairs * k * k * n_levels
-        if projected > max_edges:
-            raise ValueError(
-                f"a dense circuit here would hold ~{projected:,} edges "
-                f"(> max_edges={max_edges:,}): {len(chosen)} positions x {k} "
-                f"concepts over {n_levels} level pairs. Narrow positions=, lower "
-                "k, shrink the layer range, raise stride, use mode=2, or raise "
-                "max_edges."
-            )
+    # Token text ("has") is resolvable here but not in JCircuit.prune, which
+    # has no tokenizer, so turn it into indices before the shared root rule.
+    if roots is not None and not isinstance(roots, str):
+        roots = _resolve_positions(list(roots), input_ids, False, model.tokenizer)
+    root_positions = _root_positions(roots, chosen)
 
     # The recorder's hooks must be gone before IG runs its own forwards: they
     # would re-root the graph at layer_bottom on every perturbed pass, retaining
@@ -1219,20 +1040,16 @@ def build_jcircuit(
                 )
         kept_nodes: dict[int, list[Node]] = {layer_top: live}
         edges: list[Edge] = []
-        coverage: list[Coverage] = []
         for layer in range(layer_top, layer_bottom, -stride):
             all_targets, all_dirs, all_pos = concepts[layer]
             sources, source_dirs, source_pos = concepts[layer - stride]
             order = {n: i for i, n in enumerate(all_targets)}
-            wanted = live if mode == 2 else [n for n in all_targets if not n.is_error]
+            wanted = live
             pick = torch.tensor([order[n] for n in wanted], device=all_dirs.device)
             targets, target_dirs, target_pos = wanted, all_dirs[pick], all_pos[pick]
 
             source_acts = torch.tensor(
                 [n.activation for n in sources], device=source_dirs.device
-            )
-            source_named = torch.tensor(
-                [not n.is_error for n in sources], device=source_dirs.device
             )
             if estimator == "ig":
                 scores = _score_layer_pair_ig(
@@ -1249,7 +1066,7 @@ def build_jcircuit(
                     max(1, min(vjp_chunk, IG_ROW_CHUNK)),
                 )
             else:
-                scores, split = _score_layer_pair(
+                scores = _score_layer_pair(
                     acts,
                     layer,
                     target_dirs,
@@ -1257,23 +1074,8 @@ def build_jcircuit(
                     source_dirs,
                     source_pos,
                     source_acts,
-                    source_named,
                     stride,
                     vjp_chunk,
-                )
-                coverage.extend(
-                    Coverage(
-                        target=target,
-                        source_layer=layer - stride,
-                        source_position=position,
-                        named=float(named[j]),
-                        total=float(total[j]),
-                    )
-                    for position, (named, total) in sorted(split.items())
-                    for j, target in enumerate(targets)
-                    # A source block at or after the target carries no edge into
-                    # it, so its gradient is not influence the circuit dropped.
-                    if position <= target.position
                 )
             # The residual stream only carries a concept forward within its own
             # position; across positions there is no identity path.
@@ -1281,23 +1083,23 @@ def build_jcircuit(
             identity = source_acts.unsqueeze(1) * (source_dirs @ target_dirs.T) * same
             causal = source_pos.unsqueeze(1) <= target_pos.unsqueeze(0)
 
-            if mode == 2:
-                flat = scores.abs().masked_fill(~causal, float("-inf")).flatten()
-                n_eligible = int(causal.sum())
-                n_keep = max(1, round(prune_percent / 100.0 * n_eligible))
-                # A stable sort, not topk: equal scores must then be broken by
-                # flat index, the same rule `_keep_top_percent` follows, or the
-                # two mode-2 paths disagree wherever the cutoff lands in a tie.
-                order = torch.argsort(flat, descending=True, stable=True)
-                chosen_flat = order[: min(n_keep, n_eligible)].sort().values
-                picks = [divmod(int(f), len(targets)) for f in chosen_flat]
-            else:
-                picks = [
-                    (i, j)
-                    for i in range(len(sources))
-                    for j in range(len(targets))
-                    if causal[i, j]
-                ]
+            # The budget comes from the level as the dense graph would have
+            # built it — every named target, not only the live ones — so
+            # `_prune_levels` and this path allow the same count.
+            named_mask = torch.tensor(
+                [not n.is_error for n in all_targets], device=all_pos.device
+            )
+            dense_pos = all_pos[named_mask]
+            n_dense = int((source_pos.unsqueeze(1) <= dense_pos.unsqueeze(0)).sum())
+            flat = scores.abs().masked_fill(~causal, float("-inf")).flatten()
+            n_eligible = int(causal.sum())
+            n_keep = _level_budget(n_dense, prune_percent)
+            # A stable sort, not topk: equal scores must then be broken by flat
+            # index, the same rule `_keep_top_n` follows, or the two pruning
+            # paths disagree wherever the cutoff lands in a tie.
+            order = torch.argsort(flat, descending=True, stable=True)
+            chosen_flat = order[: min(n_keep, n_eligible)].sort().values
+            picks = [divmod(int(f), len(targets)) for f in chosen_flat]
 
             level = [
                 Edge(
@@ -1311,22 +1113,18 @@ def build_jcircuit(
             if not level:
                 break
             edges.extend(level)
-            if mode == 2:
-                survivors = {e.source for e in level}
-                kept = [n for n in sources if n in survivors]
-                if not kept:
-                    break
-                kept_nodes[layer - stride] = kept
-                # An error node that survived stays in the graph as a leaf, but
-                # it is never a target, so it does not seed the next descent.
-                live = [n for n in kept if not n.is_error]
-                if not live:
-                    break
-            else:
-                kept_nodes[layer - stride] = sources
+            survivors = {e.source for e in level}
+            kept = [n for n in sources if n in survivors]
+            if not kept:
+                break
+            kept_nodes[layer - stride] = kept
+            # An error node that survived stays in the graph as a leaf, but it
+            # is never a target, so it does not seed the next descent.
+            live = [n for n in kept if not n.is_error]
+            if not live:
+                break
 
     hparams = {
-        "mode": mode,
         "k": k,
         "selection": selection,
         "error_nodes": error_nodes,
@@ -1344,7 +1142,7 @@ def build_jcircuit(
         "layer_bottom_percentile": (
             None if layer_bottom_explicit else layer_bottom_percentile
         ),
-        "prune_percent": prune_percent if mode == 2 else None,
+        "prune_percent": prune_percent,
         # None means "every position is a root", the dense reading.
         "roots": root_positions,
         "positions": None if positions is None else list(positions),
@@ -1358,7 +1156,5 @@ def build_jcircuit(
         nodes=kept_nodes,
         edges=edges,
         hparams=hparams,
-        mode=mode,
-        coverage=tuple(coverage),
         error_directions=error_dirs,
     )

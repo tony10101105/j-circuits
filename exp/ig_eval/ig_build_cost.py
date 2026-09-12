@@ -51,7 +51,7 @@ def unit(token_id, layer):
 
 torch.cuda.synchronize()
 t0 = time.perf_counter()
-dense = build_jcircuit(lens, model, PROMPT, mode=1, **common)
+dense = build_jcircuit(lens, model, PROMPT, prune_percent=100.0, roots="all", **common)
 torch.cuda.synchronize()
 t_build = time.perf_counter() - t0
 pruned = dense.prune(20.0, roots="last")

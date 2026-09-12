@@ -38,7 +38,6 @@ embedding in a themed document.
 from __future__ import annotations
 
 import re
-from collections.abc import Sequence
 from pathlib import Path
 
 from jlens.circuit import Edge, JCircuit, Node
@@ -110,84 +109,11 @@ def _kind(edge: Edge, compute_threshold: float) -> str:
     return "carry"
 
 
-def _restrict_to_roots(
-    circuit: JCircuit,
-    kept_nodes: dict[int, list[Node]],
-    drawn: list[int],
-    blocks: list[int],
-    roots: str | Sequence[int],
-    compute_threshold: float,
-    min_score_fraction: float,
-) -> tuple[dict[int, list[Node]], list[Edge] | None]:
-    """Keep only what a circuit's *output* is made of.
-
-    A J-circuit's output is the model's next-token prediction, which is read at
-    one position — the last token. The top-layer concepts of every other
-    position are not that output, and neither is the cone of earlier concepts
-    that exists only to feed them. ``roots`` names the positions whose
-    top-layer concepts count as the output; everything that cannot reach one of
-    them by walking edges forward is dropped.
-
-    Weak edges are removed first, so a node kept only by an edge too faint to
-    draw does not survive as an orphan. Returns the surviving nodes and the
-    surviving edges (``None`` when ``roots="all"``, i.e. nothing was filtered).
-    """
-    if roots == "all":
-        return kept_nodes, None
-    if roots == "last":
-        chosen = {blocks[-1]}
-    else:
-        chosen = {int(p) for p in roots}
-        unknown = chosen - set(blocks)
-        if unknown:
-            raise ValueError(
-                f"root positions {sorted(unknown)} are not drawn; available: {blocks}"
-            )
-
-    node_set = {n for nodes in kept_nodes.values() for n in nodes}
-    edges = [e for e in circuit.edges if e.source in node_set and e.target in node_set]
-    if min_score_fraction > 0 and edges:
-        grouped: dict[str, list[Edge]] = {}
-        for edge in edges:
-            grouped.setdefault(_kind(edge, compute_threshold), []).append(edge)
-        edges = [
-            edge
-            for group in grouped.values()
-            for edge in group
-            if abs(edge.score) >= min_score_fraction * max(abs(e.score) for e in group)
-        ]
-
-    incoming: dict[Node, list[Edge]] = {}
-    for edge in edges:
-        incoming.setdefault(edge.target, []).append(edge)
-
-    frontier = {n for n in kept_nodes[drawn[0]] if n.position in chosen}
-    reachable, kept_edges = set(frontier), []
-    while frontier:
-        following = set()
-        for node in frontier:
-            for edge in incoming.get(node, []):
-                kept_edges.append(edge)
-                if edge.source not in reachable:
-                    reachable.add(edge.source)
-                    following.add(edge.source)
-        frontier = following
-
-    return (
-        {
-            layer: [n for n in nodes if n in reachable]
-            for layer, nodes in kept_nodes.items()
-        },
-        kept_edges,
-    )
-
-
 def render_svg(
     circuit: JCircuit,
     *,
     layers: list[int] | None = None,
     positions: list[int] | None = None,
-    roots: str | Sequence[int] = "last",
     position_labels: dict[int, str] | None = None,
     row_height: float = 66.0,
     node_height: float = 24.0,
@@ -211,12 +137,6 @@ def render_svg(
             :attr:`~jlens.circuit.JCircuit.layers` to crop a deep circuit.
         positions: Position blocks to include, default all the circuit has.
             The main lever for cropping a wide circuit.
-        roots: Which positions' top-layer concepts count as the circuit's
-            output. ``"last"`` (default) takes the last drawn position — the
-            one the model's next-token prediction is read at — and drops every
-            other top-layer concept along with the cone that only feeds it.
-            ``"all"`` disables the filter; a sequence of positions names them
-            explicitly.
         position_labels: Optional caption per position — the prompt's token
             there reads far better than a bare index.
         row_height: Vertical distance between layers.
@@ -268,13 +188,6 @@ def render_svg(
     drawn = [l for l in drawn if kept_nodes[l]]
     if not drawn:
         raise ValueError("no concepts left after cropping to the requested positions")
-
-    kept_nodes, root_edges = _restrict_to_roots(
-        circuit, kept_nodes, drawn, blocks, roots, compute_threshold, min_score_fraction
-    )
-    drawn = [l for l in drawn if kept_nodes[l]]
-    if not drawn:
-        raise ValueError("no concepts reach the requested roots")
 
     # One column per (position, concept), grouped so each position is a block.
     # Keyed on token *id*: a vocabulary can spell two ids the same way (Qwen3

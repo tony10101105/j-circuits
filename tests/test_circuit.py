@@ -17,7 +17,13 @@ import contextlib
 import pytest
 import torch
 
-from jlens.circuit import JCircuit, Node, _resolve_positions, build_jcircuit
+from jlens.circuit import (
+    JCircuit,
+    Node,
+    _level_budget,
+    _resolve_positions,
+    build_jcircuit,
+)
 from jlens.hooks import ActivationRecorder
 from jlens.lens import JacobianLens
 from tests.tiny import TinyDecoder
@@ -65,9 +71,12 @@ def lens():
 
 
 def build(lens, model, **kw):
+    """Dense by default: every edge kept, every position a root."""
     kw.setdefault("layer_top", 3)
     kw.setdefault("layer_bottom", 0)
     kw.setdefault("k", 3)
+    kw.setdefault("prune_percent", 100.0)
+    kw.setdefault("roots", "all")
     return build_jcircuit(lens, model, PROMPT, **kw)
 
 
@@ -285,14 +294,16 @@ def test_ig_edge_scores_match_true_ablation(lens, model):
     assert checked == 3 * 3 * 2  # (k+1) sources x k targets
 
 
-def test_ig_works_with_stride_mode2_and_roots(lens, model):
+def test_ig_works_with_stride_pruning_and_roots(lens, model):
     """The estimator is orthogonal to the rest of the knobs."""
     common = dict(k=3, positions=[1, 2, 3], stride=2, layer_bottom=0, layer_top=3)
-    dense = build_jcircuit(lens, model, PROMPT, mode=1, estimator="ig", **common)
+    dense = build_jcircuit(
+        lens, model, PROMPT, prune_percent=100.0, roots="all", estimator="ig", **common
+    )
     assert dense.layers == [2, 0]
     pruned = dense.prune(40.0, roots="last")
     direct = build_jcircuit(
-        lens, model, PROMPT, mode=2, estimator="ig", prune_percent=40.0, **common
+        lens, model, PROMPT, estimator="ig", prune_percent=40.0, **common
     )
     assert pruned.nodes == direct.nodes
     for a, b in zip(pruned.edges, direct.edges, strict=True):
@@ -403,9 +414,11 @@ def test_stride_keeps_the_identity_share_exact(lens, model):
 
 def test_stride_survives_pruning_in_both_paths(lens, model):
     common = dict(k=3, positions=[1, 2, 3], stride=2, layer_bottom=0, layer_top=3)
-    dense = build_jcircuit(lens, model, PROMPT, mode=1, **common)
+    dense = build_jcircuit(
+        lens, model, PROMPT, prune_percent=100.0, roots="all", **common
+    )
     pruned = dense.prune(40.0)
-    direct = build_jcircuit(lens, model, PROMPT, mode=2, prune_percent=40.0, **common)
+    direct = build_jcircuit(lens, model, PROMPT, prune_percent=40.0, **common)
     assert pruned.layers == direct.layers == [2, 0]
     assert pruned.nodes == direct.nodes
     for a, b in zip(pruned.edges, direct.edges, strict=True):
@@ -414,20 +427,21 @@ def test_stride_survives_pruning_in_both_paths(lens, model):
 
 
 # --------------------------------------------------------------------------- #
-# mode 2 / pruning
+# pruning
 # --------------------------------------------------------------------------- #
 
 
 @pytest.mark.parametrize("roots", ["last", "all"])
 @pytest.mark.parametrize("percent", [20.0, 50.0, 100.0])
-def test_mode2_equals_mode1_then_prune(lens, model, percent, roots):
+def test_building_pruned_equals_building_dense_then_pruning(
+    lens, model, percent, roots
+):
     """Including where the cutoff falls inside a run of tied scores: this model
     has no attention, so its cross-position edges are all exactly zero."""
     common = dict(k=3, positions=[1, 2, 3])
-    dense = build(lens, model, mode=1, **common)
+    dense = build(lens, model, **common)
     pruned = dense.prune(percent, roots=roots)
-    direct = build(lens, model, mode=2, prune_percent=percent, roots=roots, **common)
-    assert pruned.mode == direct.mode == 2
+    direct = build(lens, model, prune_percent=percent, roots=roots, **common)
     assert pruned.nodes == direct.nodes
     assert len(pruned.edges) == len(direct.edges)
     for a, b in zip(pruned.edges, direct.edges, strict=True):
@@ -476,14 +490,14 @@ def test_prune_is_idempotent_at_100_percent(lens, model):
 
 
 # --------------------------------------------------------------------------- #
-# roots: where mode 2 starts its descent
+# roots: where the descent starts
 # --------------------------------------------------------------------------- #
 
 
 @pytest.mark.parametrize("roots", ["last", [2]])
 def test_roots_restrict_the_top_layer_to_the_output_position(lens, model, roots):
     common = dict(k=3, positions=[1, 2])
-    dense = build(lens, model, mode=1, **common)
+    dense = build(lens, model, **common)
     pruned = dense.prune(20.0, roots=roots)
     assert {n.position for n in pruned.nodes[pruned.layer_top]} == {2}
     assert pruned.hparams["roots"] == [2]
@@ -496,35 +510,64 @@ def test_roots_restrict_the_top_layer_to_the_output_position(lens, model, roots)
 
 
 def test_roots_spend_the_budget_on_the_cone_that_reaches_them(lens, model):
-    """Same percentage, but none of it wasted on positions nobody reads."""
+    """Same allowance, none of it wasted on positions nobody reads.
+
+    The budget is a share of the *dense* level, so narrowing the roots does not
+    shrink it — it redirects it into the cone that feeds them.
+    """
     common = dict(k=3, positions=[1, 2, 3])
-    dense = build(lens, model, mode=1, **common)
+    dense = build(lens, model, **common)
     focused = dense.prune(20.0, roots="last")
     spread = dense.prune(20.0, roots="all")
-    top = dense.layer_top
-    assert len(focused.edges_into(top)) < len(spread.edges_into(top))
-    # what survives is a subset of the dense graph's edges into the root block
+    top, last = dense.layer_top, dense.positions[-1]
     into_root = {
-        (e.source, e.target)
-        for e in dense.edges_into(top)
-        if e.target.position == dense.positions[-1]
+        (e.source, e.target) for e in dense.edges_into(top) if e.target.position == last
     }
-    assert {(e.source, e.target) for e in focused.edges_into(top)} <= into_root
+    kept_focused = {(e.source, e.target) for e in focused.edges_into(top)}
+    kept_spread = {(e.source, e.target) for e in spread.edges_into(top)}
+
+    # Narrowing the roots costs nothing: the cone is larger than the budget
+    # here, so the focused graph spends the whole allowance.
+    budget = _level_budget(len(dense.edges_into(top)), 20.0)
+    assert len(kept_focused) == min(budget, len(into_root))
+    assert len(kept_focused) == len(kept_spread)
+    # ...and all of it now feeds a root, where the spread graph put part of the
+    # same allowance elsewhere.
+    assert kept_focused <= into_root
+    assert any(target.position != last for _, target in kept_spread)
+    assert kept_focused - kept_spread
+
+
+def test_the_budget_comes_from_the_dense_level_not_from_the_survivors(lens, model):
+    """A share-of-the-survivors rule compounds: every level shrinks the pool the
+    next one is measured against, so a long descent starves and truncates
+    part-way down. Taking the share from the dense level keeps it put."""
+    dense = build(lens, model, k=3, positions=[1, 2, 3])
+    pruned = dense.prune(20.0, roots="last")
+
+    assert pruned.layers == dense.layers  # reached layer_bottom, did not starve
+    kept = []
+    for layer in pruned.layers[:-1]:  # the bottom level has no incoming edges
+        budget = _level_budget(len(dense.edges_into(layer)), 20.0)
+        n = len(pruned.edges_into(layer))
+        assert 0 < n <= budget
+        kept.append(n)
+    assert min(kept) == max(kept)  # flat down the descent, not decaying
 
 
 @pytest.mark.parametrize("roots", ["last", [13], ["i"]])
-def test_mode2_with_roots_equals_dense_then_prune_with_roots(lens, model, roots):
+def test_roots_agree_between_building_pruned_and_pruning_dense(lens, model, roots):
     # positions 11..13 are the only ones whose characters occur once, so token
     # text names exactly one of them (the tiny tokenizer is character-level)
     common = dict(k=3, positions=[11, 12, 13])
-    dense = build(lens, model, mode=1, **common)
+    dense = build(lens, model, **common)
     resolved = (
         roots
         if isinstance(roots, str)
         else _resolve_positions(roots, model.encode(PROMPT), False, model.tokenizer)
     )
     pruned = dense.prune(20.0, roots=resolved)
-    direct = build(lens, model, mode=2, prune_percent=20.0, roots=roots, **common)
+    direct = build(lens, model, prune_percent=20.0, roots=roots, **common)
     assert pruned.nodes == direct.nodes
     assert len(pruned.edges) == len(direct.edges)
     for a, b in zip(pruned.edges, direct.edges, strict=True):
@@ -533,28 +576,31 @@ def test_mode2_with_roots_equals_dense_then_prune_with_roots(lens, model, roots)
 
 
 def test_roots_default_to_the_last_position(lens, model):
-    common = dict(k=2, positions=[1, 2])
-    default = build(lens, model, mode=2, prune_percent=30.0, **common)
-    explicit = build(lens, model, mode=2, prune_percent=30.0, roots="last", **common)
+    """The helper forces roots="all", so go through build_jcircuit directly."""
+    common = dict(k=2, positions=[1, 2], layer_top=3, layer_bottom=0)
+    default = build_jcircuit(lens, model, PROMPT, prune_percent=30.0, **common)
+    explicit = build_jcircuit(
+        lens, model, PROMPT, prune_percent=30.0, roots="last", **common
+    )
     assert default.hparams["roots"] == [2]
     assert default.nodes == explicit.nodes
     assert len(default.edges) == len(explicit.edges)
-    # mode 1 takes the same default and stays dense, keeping every position
-    dense = build(lens, model, mode=1, **common)
-    assert dense.hparams["roots"] is None
-    assert {n.position for n in dense.nodes[dense.layer_top]} == {1, 2}
+    # "all" — and None, its synonym — impose no restriction
+    for value in ("all", None):
+        everywhere = build_jcircuit(
+            lens, model, PROMPT, prune_percent=30.0, roots=value, **common
+        )
+        assert everywhere.hparams["roots"] is None
+        assert {n.position for n in everywhere.nodes[everywhere.layer_top]} == {1, 2}
 
 
-def test_roots_are_rejected_for_mode_1_and_when_unknown(lens, model):
-    for value in ("last", "all", [1]):
-        with pytest.raises(ValueError, match="roots applies to mode=2 only"):
-            build(lens, model, mode=1, roots=value)
+def test_unknown_roots_are_rejected(lens, model):
     with pytest.raises(ValueError, match="carry no concepts"):
-        build(lens, model, mode=2, positions=[1, 2], roots=[3])
+        build(lens, model, positions=[1, 2], roots=[3])
     with pytest.raises(ValueError, match="must be 'all', 'last'"):
-        build(lens, model, mode=2, roots="final")
+        build(lens, model, roots="final")
     with pytest.raises(ValueError, match="must be integers here"):
-        build(lens, model, mode=1, k=2).prune(20.0, roots=["i"])
+        build(lens, model, k=2).prune(20.0, roots=["i"])
 
 
 # --------------------------------------------------------------------------- #
@@ -610,22 +656,13 @@ def test_invalid_stride_raises(lens, model):
         build(lens, model, stride=4)
 
 
-def test_dense_edge_budget_is_enforced(lens, model):
-    with pytest.raises(ValueError, match="max_edges"):
-        build(lens, model, k=3, max_edges=10)
-    # mode 2 only materialises survivors, so the budget does not apply
-    assert build(lens, model, k=3, mode=2, max_edges=10).edges
-
-
 def test_invalid_arguments_raise(lens, model):
-    with pytest.raises(ValueError, match="mode must be"):
-        build(lens, model, mode=3)
     with pytest.raises(ValueError, match="k must be"):
         build(lens, model, k=0)
     with pytest.raises(ValueError, match="vjp_chunk"):
         build(lens, model, vjp_chunk=0)
     with pytest.raises(ValueError, match="prune_percent"):
-        build(lens, model, mode=2, prune_percent=0.0)
+        build(lens, model, prune_percent=0.0)
     with pytest.raises(ValueError, match="prune_percent"):
         build(lens, model, k=2).prune(101.0)
     with pytest.raises(ValueError, match="must be above"):
@@ -660,129 +697,15 @@ def test_vjp_chunking_does_not_change_scores(lens, model):
 def test_format_and_repr_render(lens, model):
     circuit = build(lens, model, k=2, positions=[1, 2])
     text = circuit.format()
-    assert "JCircuit(mode=1" in text and "L3" in text and "pos" in text
+    assert "JCircuit(layers=" in text and "L3" in text and "pos" in text
     assert "attn" in text or "resid" in text
     assert isinstance(str(Node(1, 2, 3, "x", 0.5, 0)), str)
     assert isinstance(JCircuit({}, [], {"layer_top": 1, "layer_bottom": 0}), JCircuit)
 
 
 # --------------------------------------------------------------------------- #
-# coverage / error node
+# error node
 # --------------------------------------------------------------------------- #
-
-
-def test_coverage_named_part_is_the_lone_projection_when_k_is_one(lens, model):
-    """With one *named* concept per block the span is a line, so ``||P_J g||``
-    must be exactly the magnitude of that concept's own edge divided by ``a_s``.
-
-    The block's error node is a source too, but coverage deliberately excludes
-    it — it measures what can be given a name.
-    """
-    circuit = build(lens, model, k=1)
-    assert circuit.coverage
-    for row in circuit.coverage:
-        edges = [
-            e
-            for e in circuit.edges
-            if e.target == row.target
-            and e.source.layer == row.source_layer
-            and e.source.position == row.source_position
-            and not e.source.is_error
-        ]
-        assert len(edges) == 1
-        edge = edges[0]
-        if abs(edge.source.activation) < 1e-3:
-            continue
-        expected = abs(edge.score / edge.source.activation)
-        assert row.named == pytest.approx(expected, rel=1e-4, abs=1e-6)
-
-
-def test_coverage_is_a_bounded_share_of_the_gradient(lens, model):
-    circuit = build(lens, model, k=3)
-    assert circuit.coverage
-    for row in circuit.coverage:
-        assert 0.0 <= row.named <= row.total * (1 + 1e-5)
-        if row.total == 0.0:
-            continue
-        assert 0.0 <= row.fraction <= 1.0 + 1e-5
-        assert row.error == pytest.approx(1.0 - row.fraction)
-
-
-def test_a_gradient_of_zero_reports_nan_rather_than_total_leakage(lens, model):
-    """The tiny decoder has no attention, so a cross-position gradient is
-    exactly zero. That is *no influence*, not influence the concepts missed."""
-    circuit = build(lens, model, k=3)
-    blind = [r for r in circuit.coverage if r.source_position != r.target.position]
-    assert blind
-    assert all(r.total == 0.0 and r.named == 0.0 for r in blind)
-    assert all(r.fraction != r.fraction and r.error != r.error for r in blind)
-    # ...and they must not poison the aggregate.
-    assert 0.0 <= circuit.error_mass() <= 1.0
-
-
-def test_a_full_rank_concept_set_names_the_whole_gradient(lens, model):
-    """``k`` equal to ``d_model`` spans the residual space, so nothing leaks."""
-    circuit = build(lens, model, k=8, selection="topk")
-    live = [row for row in circuit.coverage if row.total > 0]
-    assert live
-    assert all(row.fraction == pytest.approx(1.0, abs=1e-4) for row in live)
-    assert circuit.error_mass() == pytest.approx(0.0, abs=1e-4)
-
-
-def test_fewer_concepts_name_less_of_the_gradient(lens, model):
-    masses = [build(lens, model, k=k, selection="topk").error_mass() for k in (1, 2, 4)]
-    assert masses == sorted(masses, reverse=True)
-    assert all(0.0 <= m <= 1.0 for m in masses)
-
-
-def test_coverage_rows_exist_exactly_for_causal_source_positions(lens, model):
-    circuit = build(lens, model, k=2)
-    stride = circuit.stride
-    seen = {(r.target, r.source_layer, r.source_position) for r in circuit.coverage}
-    expected = {
-        (target, layer - stride, position)
-        for layer in circuit.nodes
-        if layer - stride in circuit.nodes
-        for target in circuit.nodes[layer]
-        # error nodes are never targets, so they have no incoming gradient
-        if not target.is_error
-        for position in circuit.positions
-        if position <= target.position
-    }
-    assert seen == expected
-
-
-def test_error_mass_restricts_to_one_source_layer(lens, model):
-    circuit = build(lens, model, k=2)
-    pooled = circuit.error_mass()
-    per_layer = [circuit.error_mass(layer=l) for l in (0, 1, 2)]
-    assert all(0.0 <= m <= 1.0 for m in per_layer)
-    assert min(per_layer) <= pooled <= max(per_layer)
-
-
-def test_pruning_keeps_coverage_for_surviving_targets_only(lens, model):
-    dense = build(lens, model, k=3)
-    pruned = dense.prune(20.0, roots="last")
-    alive = {n for v in pruned.nodes.values() for n in v}
-    assert pruned.coverage
-    assert len(pruned.coverage) < len(dense.coverage)
-    assert all(row.target in alive for row in pruned.coverage)
-    # Coverage is a property of the target's own gradient, so the rows that
-    # survive must be unchanged by the pruning, not recomputed.
-    assert set(pruned.coverage) <= set(dense.coverage)
-
-
-def test_dropping_tokens_drops_their_coverage(lens, model):
-    circuit = build(lens, model, k=3).prune(50.0, roots="all")
-    doomed = circuit.nodes[circuit.layer_top][0].token_id
-    smaller = circuit.drop_tokens([doomed])
-    assert all(row.target.token_id != doomed for row in smaller.coverage)
-
-
-def test_ig_builds_carry_no_coverage(lens, model):
-    circuit = build(lens, model, k=2, estimator="ig", ig_steps=2)
-    assert circuit.coverage == ()
-    assert circuit.error_mass() != circuit.error_mass()  # nan
 
 
 def test_span_basis_ignores_duplicate_directions():

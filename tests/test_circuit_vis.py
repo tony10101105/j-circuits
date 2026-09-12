@@ -34,9 +34,21 @@ def lens():
 
 @pytest.fixture()
 def circuit(lens, model):
-    """Two position blocks, so cross-position edges exist in the figure."""
+    """Two position blocks, so cross-position edges exist in the figure.
+
+    Dense: these tests are about what the renderer draws, so the graph handed
+    to it should still carry every edge.
+    """
     return build_jcircuit(
-        lens, model, PROMPT, k=3, layer_top=3, layer_bottom=0, positions=[1, 2]
+        lens,
+        model,
+        PROMPT,
+        k=3,
+        layer_top=3,
+        layer_bottom=0,
+        positions=[1, 2],
+        prune_percent=100.0,
+        roots="all",
     )
 
 
@@ -63,7 +75,7 @@ def test_output_is_well_formed_and_self_contained(circuit):
 
 
 def test_every_node_and_edge_is_drawn(circuit):
-    svg = render_svg(circuit, min_score_fraction=0.0, roots="all")
+    svg = render_svg(circuit, min_score_fraction=0.0)
     root = ET.fromstring(svg)
     ns = "{http://www.w3.org/2000/svg}"
     n_nodes = sum(len(v) for v in circuit.nodes.values())
@@ -76,7 +88,6 @@ def test_the_four_edge_kinds_are_styled_apart(circuit):
     svg = render_svg(
         circuit,
         min_score_fraction=0.0,
-        roots="all",
         carry_color="#111111",
         compute_color="#222222",
         attention_color="#333333",
@@ -108,7 +119,7 @@ def test_ink_and_background_make_a_file_readable_on_any_canvas(circuit):
     assert "<rect" in embedded  # node boxes, but no backdrop
     n_nodes = sum(len(v) for v in circuit.nodes.values())
 
-    standalone = render_svg(circuit, roots="all", ink="#1a1a1a", background="#ffffff")
+    standalone = render_svg(circuit, ink="#1a1a1a", background="#ffffff")
     assert "currentColor" not in standalone
     rects = ET.fromstring(standalone).findall(f"{ns}rect")
     assert len(rects) == n_nodes + 1
@@ -133,16 +144,14 @@ def test_labels_are_capped_and_staggered(circuit):
         + sum(len(v) for v in circuit.nodes.values())
         + len(circuit.positions)
     )
-    assert n_texts(render_svg(circuit, max_labels_per_level=0, roots="all")) == chrome
+    assert n_texts(render_svg(circuit, max_labels_per_level=0)) == chrome
     for cap in (1, 2, 3):
-        extra = (
-            n_texts(render_svg(circuit, max_labels_per_level=cap, roots="all")) - chrome
-        )
+        extra = n_texts(render_svg(circuit, max_labels_per_level=cap)) - chrome
         assert 0 < extra <= cap * (len(circuit.layers) - 1)
 
 
 def test_positions_argument_crops_the_figure(circuit):
-    one = render_svg(circuit, positions=[2], roots="all")
+    one = render_svg(circuit, positions=[2])
     ns = "{http://www.w3.org/2000/svg}"
     n_boxes = len(ET.fromstring(one).findall(f"{ns}rect"))
     assert n_boxes == sum(len(circuit.nodes_at(l, 2)) for l in circuit.layers)
@@ -152,26 +161,35 @@ def test_positions_argument_crops_the_figure(circuit):
 
 
 def test_position_labels_caption_the_blocks(circuit):
-    svg = render_svg(circuit, position_labels={1: " web", 2: " spins"}, roots="all")
+    svg = render_svg(circuit, position_labels={1: " web", 2: " spins"})
     assert "␣web" in svg and "␣spins" in svg
 
 
 def test_too_many_columns_raises(lens, model, monkeypatch):
     monkeypatch.setattr("jlens.circuit_vis.MAX_COLUMNS", 48)
-    wide = build_jcircuit(lens, model, PROMPT, k=8, layer_top=3, layer_bottom=0)
+    wide = build_jcircuit(
+        lens,
+        model,
+        PROMPT,
+        k=8,
+        layer_top=3,
+        layer_bottom=0,
+        prune_percent=100.0,
+        roots="all",
+    )
     with pytest.raises(ValueError, match="MAX_COLUMNS"):
         render_svg(wide)
 
 
 def test_layers_argument_crops_the_figure(circuit):
-    cropped = render_svg(circuit, layers=[3, 2], roots="all")
+    cropped = render_svg(circuit, layers=[3, 2])
     ns = "{http://www.w3.org/2000/svg}"
     root = ET.fromstring(cropped)
     assert len(root.findall(f"{ns}rect")) == len(circuit.nodes[3]) + len(
         circuit.nodes[2]
     )
     assert _layer_labels(cropped) == {"L3", "L2"}
-    assert _layer_labels(render_svg(circuit, roots="all")) == {"L3", "L2", "L1", "L0"}
+    assert _layer_labels(render_svg(circuit)) == {"L3", "L2", "L1", "L0"}
 
 
 @pytest.mark.parametrize(
@@ -207,16 +225,23 @@ def test_two_ids_spelled_the_same_get_their_own_columns(circuit):
         nodes={**circuit.nodes, layer: layer_nodes},
         edges=[],
         hparams=circuit.hparams,
-        mode=circuit.mode,
     )
-    svg = render_svg(clashing, layers=[layer], roots="all")
+    svg = render_svg(clashing, layers=[layer])
     xs = [float(r.get("x")) for r in ET.fromstring(svg).findall(f"{ns}rect")]
     assert len(xs) == len(set(xs)) == len(circuit.nodes[layer])
 
 
 def test_whitespace_in_tokens_is_made_visible(lens, model):
     circuit = build_jcircuit(
-        lens, model, PROMPT, k=2, layer_top=2, layer_bottom=0, positions=[2]
+        lens,
+        model,
+        PROMPT,
+        k=2,
+        layer_top=2,
+        layer_bottom=0,
+        positions=[2],
+        prune_percent=100.0,
+        roots="all",
     )
     svg = render_svg(circuit)
     for node in circuit.nodes_at(2, 2):
@@ -247,10 +272,8 @@ def test_weak_edges_are_dropped_and_faded(circuit):
         # two arrowhead markers live in <defs> and also use <path>
         return len(ET.fromstring(svg).findall(f"{ns}path"))
 
-    assert n_paths(render_svg(circuit, min_score_fraction=0.0, roots="all")) == len(
-        circuit.edges
-    )
-    trimmed = render_svg(circuit, min_score_fraction=0.5, roots="all")
+    assert n_paths(render_svg(circuit, min_score_fraction=0.0)) == len(circuit.edges)
+    trimmed = render_svg(circuit, min_score_fraction=0.5)
     # thinning is per kind, so each kind keeps its own strongest edges
     from jlens.circuit_vis import _kind
 
@@ -278,7 +301,7 @@ def test_weak_edges_are_dropped_and_faded(circuit):
 def test_numbers_are_recorded_not_printed(circuit):
     """Width and opacity carry the magnitude; the exact values ride a <title>."""
     ns = "{http://www.w3.org/2000/svg}"
-    svg = render_svg(circuit, min_score_fraction=0.0, roots="all")
+    svg = render_svg(circuit, min_score_fraction=0.0)
     root = ET.fromstring(svg)
     printed = [
         (t.text or "")
@@ -311,72 +334,3 @@ def test_edge_labels_show_computed_with_significant_figures(circuit):
 
     computed = {_format_value(e.computed) for e in circuit.edges}
     assert printed <= computed
-
-
-# --------------------------------------------------------------------------- #
-# roots: the circuit's output is read at one position
-# --------------------------------------------------------------------------- #
-
-
-def test_roots_default_keeps_only_the_last_position_on_top(circuit):
-    ns = "{http://www.w3.org/2000/svg}"
-    default = render_svg(circuit, min_score_fraction=0.0)
-    everything = render_svg(circuit, min_score_fraction=0.0, roots="all")
-    top = circuit.layer_top
-    n_root_block = len(circuit.nodes_at(top, circuit.positions[-1]))
-    n_all_top = len(circuit.nodes[top])
-    assert n_root_block < n_all_top, "fixture needs >1 position on the top layer"
-
-    def top_row_boxes(svg):
-        rects = ET.fromstring(svg).findall(f"{ns}rect")
-        top_y = min(float(r.get("y")) for r in rects)
-        return sum(1 for r in rects if float(r.get("y")) == top_y)
-
-    assert top_row_boxes(default) == n_root_block
-    assert top_row_boxes(everything) == n_all_top
-
-
-def test_roots_accepts_explicit_positions_and_rejects_unknown(circuit):
-    ns = "{http://www.w3.org/2000/svg}"
-    both = render_svg(circuit, min_score_fraction=0.0, roots=[1, 2])
-    rects = ET.fromstring(both).findall(f"{ns}rect")
-    top_y = min(float(r.get("y")) for r in rects)
-    assert sum(1 for r in rects if float(r.get("y")) == top_y) == len(
-        circuit.nodes[circuit.layer_top]
-    )
-    with pytest.raises(ValueError, match="root positions"):
-        render_svg(circuit, roots=[99])
-
-
-def test_roots_drops_edges_into_non_root_top_nodes(circuit):
-    ns = "{http://www.w3.org/2000/svg}"
-
-    def n_paths(svg):
-        return len(ET.fromstring(svg).findall(f"{ns}path"))
-
-    default = render_svg(circuit, min_score_fraction=0.0)
-    everything = render_svg(circuit, min_score_fraction=0.0, roots="all")
-    dropped = len(circuit.edges_into(circuit.layer_top)) - len(
-        [
-            e
-            for e in circuit.edges_into(circuit.layer_top)
-            if e.target.position == circuit.positions[-1]
-        ]
-    )
-    assert dropped > 0
-    assert n_paths(everything) - n_paths(default) == dropped
-
-
-def test_every_drawn_node_reaches_a_root(circuit):
-    """No orphans: each surviving node must have a forward path to the roots."""
-    svg = render_svg(circuit, min_score_fraction=0.0)
-    ns = "{http://www.w3.org/2000/svg}"
-    n_boxes = len(ET.fromstring(svg).findall(f"{ns}rect"))
-    root_pos = circuit.positions[-1]
-    reachable = {n for n in circuit.nodes[circuit.layer_top] if n.position == root_pos}
-    frontier = set(reachable)
-    while frontier:
-        sources = {e.source for e in circuit.edges if e.target in frontier}
-        frontier = sources - reachable
-        reachable |= sources
-    assert n_boxes == len(reachable)

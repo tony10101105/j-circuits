@@ -57,8 +57,8 @@ pip install -e .
 ### Circuits
 
 [`jcircuit_demo.py`](jcircuit_demo.py) builds a J-circuit — a layered
-attribution graph over lens concepts — and writes it as an SVG. `--mode 2`
-prunes it; `--llm-token-filter-pruning` then asks Claude which of the surviving
+attribution graph over lens concepts — and writes it as an SVG.
+`--prune-percent` controls how much is kept; `--llm-token-filter-pruning` then asks Claude which of the surviving
 concepts are noise (byte fragments, punctuation, words unrelated to the prompt)
 and drops them along with anything left dangling. On the spider prompt that
 takes a pruned graph from 160 concept nodes to 70 without losing the reasoning:
@@ -66,7 +66,7 @@ competing hypotheses like `' wings'`, `'worm'`, `'蜜蜂'` (bee) are kept, while
 `'/sp'`, `'˘'`, `'超市'` (supermarket) go.
 
 ```sh
-python jcircuit_demo.py --mode 2 --llm-token-filter-pruning --svg circuit.svg
+python jcircuit_demo.py --llm-token-filter-pruning --svg circuit.svg
 ```
 
 ### Apply
